@@ -1,19 +1,22 @@
 <%@ page import="java.io.*, java.util.*" %>
 <%!
     private Map<String,String> parseJsonBody(javax.servlet.http.HttpServletRequest request) throws IOException {
+        request.setCharacterEncoding("UTF-8");
+        
         String contentType = request.getContentType();
         if(contentType == null || !contentType.toLowerCase().contains("application/json")) {
             return new HashMap<String,String>();
         }
 
-        StringBuilder body = new StringBuilder();
-        BufferedReader reader = request.getReader();
-        String line;
-        while((line = reader.readLine()) != null) {
-            body.append(line);
+        java.io.InputStream is = request.getInputStream();
+        java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+        byte[] chunk = new byte[1024];
+        int bytesRead;
+        while ((bytesRead = is.read(chunk)) != -1) {
+            buffer.write(chunk, 0, bytesRead);
         }
+        String json = buffer.toString("UTF-8").trim();
 
-        String json = body.toString().trim();
         Map<String,String> values = new HashMap<String,String>();
 
         if(json.startsWith("{") && json.endsWith("}")) {
