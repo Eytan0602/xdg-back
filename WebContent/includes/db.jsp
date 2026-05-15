@@ -7,14 +7,13 @@ try {
 
     if(con == null || con.isClosed()) {
 
-        Class.forName("com.mysql.jdbc.Driver");
+       Class.forName("org.postgresql.Driver");
 
-        con = DriverManager.getConnection(
-            "jdbc:mysql://localhost:3306/tienda_juegos2?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true",
-            "root",
-            "123456789"
-        );
-
+con = DriverManager.getConnection(
+    "jdbc:postgresql://db.hvnplebbyprpzxygttdz.supabase.co:5432/postgres?sslmode=require",
+    "postgres",
+    "QPEp35kdE6NkVjOJ"
+);
         application.setAttribute("DB_CONN", con);
     }
 

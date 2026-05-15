@@ -53,13 +53,12 @@ try {
     }
 
     String clean =
-    "DELETE cd FROM carrito_detalle cd " +
-    "INNER JOIN carritos c ON c.id = cd.carrito_id " +
-    "WHERE c.usuario_id=?";
+    "DELETE FROM carrito_detalle " +
+    "WHERE carrito_id = (SELECT id FROM carritos WHERE usuario_id=?)";
 
-    PreparedStatement cl = con.prepareStatement(clean);
-    cl.setString(1, usuario_id);
-    cl.executeUpdate();
+PreparedStatement cl = con.prepareStatement(clean);
+cl.setString(1, usuario_id);
+cl.executeUpdate();
 
     out.print("{\"success\":true,\"venta_id\":\""+ventaId+"\"}");
 

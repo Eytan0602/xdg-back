@@ -31,18 +31,25 @@ try {
 
         String hash = BCrypt.hashpw(contrasena, BCrypt.gensalt());
 
+        String customId;
+Statement stCount = con.createStatement();
+ResultSet rsCount = stCount.executeQuery("SELECT COUNT(*) FROM usuarios");
+rsCount.next();
+int next = rsCount.getInt(1) + 1;
+customId = String.format("XD-%08d", next);
+
         String sql =
-        "INSERT INTO usuarios(nombre,usuario,correo,contrasena) VALUES(?,?,?,?)";
+        "INSERT INTO usuarios(id, nombre, usuario, correo, contrasena) VALUES(?,?,?,?,?)";
 
         PreparedStatement ps = con.prepareStatement(sql);
-        ps.setString(1, nombre);
-        ps.setString(2, usuario);
-        ps.setString(3, correo);
-        ps.setString(4, hash);
+        ps.setString(1, customId);
+        ps.setString(2, nombre);
+        ps.setString(3, usuario);
+        ps.setString(4, correo);
+        ps.setString(5, hash);
 
         int r = ps.executeUpdate();
-        out.print("{\"success\":" + (r > 0) + "}");
-    }
+out.print("{\"success\":" + (r > 0) + "}");    }
 
     // =========================
     // LOGIN
