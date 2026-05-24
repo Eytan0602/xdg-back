@@ -10,8 +10,8 @@ try {
        Class.forName("org.postgresql.Driver");
 
 con = DriverManager.getConnection(
-    "jdbc:postgresql://db.hvnplebbyprpzxygttdz.supabase.co:5432/postgres?sslmode=require",
-    "postgres",
+    "jdbc:postgresql://aws-1-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require",
+    "postgres.hvnplebbyprpzxygttdz",
     "QPEp35kdE6NkVjOJ"
 );
         application.setAttribute("DB_CONN", con);
