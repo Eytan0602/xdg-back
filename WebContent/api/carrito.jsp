@@ -146,6 +146,7 @@ try {
             "cd.id, " +
             "j.id as juego_id, " +
             "j.titulo, " +
+            "j.imagen_url, " +
             "j.precio, " +
             "cd.cantidad, " +
             "(j.precio * cd.cantidad) as subtotal " +
@@ -174,6 +175,7 @@ try {
                 .append("\"detalle_id\":").append(rs.getInt("id")).append(",")
                 .append("\"juego_id\":").append(rs.getInt("juego_id")).append(",")
                 .append("\"titulo\":\"").append(rs.getString("titulo")).append("\",")
+                .append("\"imagen_url\":\"").append(rs.getString("imagen_url") != null ? rs.getString("imagen_url") : "").append("\",")
                 .append("\"precio\":").append(rs.getDouble("precio")).append(",")
                 .append("\"cantidad\":").append(rs.getInt("cantidad")).append(",")
                 .append("\"subtotal\":").append(rs.getDouble("subtotal"))
@@ -187,6 +189,26 @@ try {
         out.print(json.toString());
 
     }
+
+    // ==================================================
+// DELETE -> ELIMINAR ITEM DEL CARRITO
+// ==================================================
+else if("DELETE".equals(method)) {
+
+    String detalleId = param(request, jsonBody, "detalle_id");
+
+    if(detalleId == null) {
+        out.print("{\"error\":\"missing detalle_id\"}");
+        return;
+    }
+
+    String sql = "DELETE FROM carrito_detalle WHERE id=?";
+    PreparedStatement ps = con.prepareStatement(sql);
+    ps.setInt(1, Integer.parseInt(detalleId));
+
+    int r = ps.executeUpdate();
+    out.print("{\"success\":" + (r > 0) + "}");
+}
 
     else {
 

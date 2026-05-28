@@ -1,5 +1,5 @@
 ﻿<%@ page contentType="application/json;charset=UTF-8" %>
-
+<%@ include file="../includes/cors.jsp" %>
 <%
 String id = (String) session.getAttribute("user_id");
 String name = (String) session.getAttribute("user_name");
