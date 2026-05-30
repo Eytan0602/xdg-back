@@ -1,4 +1,4 @@
-﻿<%@ page import="java.sql.*" %>
+﻿﻿<%@ page import="java.sql.*" %>
 <%@ page contentType="application/json;charset=UTF-8" %>
 
 <%@ include file="../includes/db.jsp" %>
@@ -35,7 +35,6 @@ try {
 
         int juego_id = Integer.parseInt(juegoIdParam);
 
-        // buscar carrito
         String cartSql = "SELECT id FROM carritos WHERE usuario_id=?";
         PreparedStatement cartPs = con.prepareStatement(cartSql);
         cartPs.setString(1, user);
@@ -68,7 +67,6 @@ try {
             }
         }
 
-        // precio del juego
         String priceSql = "SELECT precio FROM juegos WHERE id=?";
 
         PreparedStatement pricePs = con.prepareStatement(priceSql);
@@ -146,6 +144,7 @@ try {
             "cd.id, " +
             "j.id as juego_id, " +
             "j.titulo, " +
+            "j.imagen_url, " +
             "j.precio, " +
             "cd.cantidad, " +
             "(j.precio * cd.cantidad) as subtotal " +
@@ -174,6 +173,7 @@ try {
                 .append("\"detalle_id\":").append(rs.getInt("id")).append(",")
                 .append("\"juego_id\":").append(rs.getInt("juego_id")).append(",")
                 .append("\"titulo\":\"").append(rs.getString("titulo")).append("\",")
+                .append("\"imagen_url\":\"").append(rs.getString("imagen_url") != null ? rs.getString("imagen_url") : "").append("\",")
                 .append("\"precio\":").append(rs.getDouble("precio")).append(",")
                 .append("\"cantidad\":").append(rs.getInt("cantidad")).append(",")
                 .append("\"subtotal\":").append(rs.getDouble("subtotal"))
@@ -187,6 +187,26 @@ try {
         out.print(json.toString());
 
     }
+
+    // ==================================================
+// DELETE -> ELIMINAR ITEM DEL CARRITO
+// ==================================================
+else if("DELETE".equals(method)) {
+
+    String detalleId = param(request, jsonBody, "detalle_id");
+
+    if(detalleId == null) {
+        out.print("{\"error\":\"missing detalle_id\"}");
+        return;
+    }
+
+    String sql = "DELETE FROM carrito_detalle WHERE id=?";
+    PreparedStatement ps = con.prepareStatement(sql);
+    ps.setInt(1, Integer.parseInt(detalleId));
+
+    int r = ps.executeUpdate();
+    out.print("{\"success\":" + (r > 0) + "}");
+}
 
     else {
 

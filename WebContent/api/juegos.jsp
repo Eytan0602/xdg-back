@@ -60,9 +60,9 @@ try {
 
             if(q != null && !q.trim().isEmpty()) {
                 if(firstFilter) {
-                    sql.append(" WHERE titulo LIKE ?");
-                } else {
-                    sql.append(" AND titulo LIKE ?");
+sql.append(" WHERE titulo ILIKE ?");            
+    } else {
+                    sql.append(" AND titulo ILIKE ?");
                 }
             }
 

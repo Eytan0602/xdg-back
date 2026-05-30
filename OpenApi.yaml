@@ -1,0 +1,426 @@
+openapi: 3.0.0
+info:
+  title: GameStore API
+  version: 1.0.0
+  description: API para la tienda de juegos
+
+servers:
+  - url: http://localhost:8080/api
+    description: Local
+
+paths:
+
+  /auth.jsp:
+    post:
+      summary: Autenticación
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [login, register, logout]
+                nombre:
+                  type: string
+                usuario:
+                  type: string
+                correo:
+                  type: string
+                contrasena:
+                  type: string
+            examples:
+              login-admin:
+                summary: Login admin
+                value:
+                  action: login
+                  correo: alli@admin.com
+                  contrasena: tuContraseña
+              login-usuario:
+                summary: Login usuario
+                value:
+                  action: login
+                  correo: luis@mail.com
+                  contrasena: "123456"
+              register:
+                summary: Registro usuario
+                value:
+                  action: register
+                  nombre: Luis
+                  usuario: luis123
+                  correo: luis@mail.com
+                  contrasena: "123456"
+              logout:
+                summary: Logout
+                value:
+                  action: logout
+      responses:
+        "200":
+          description: OK
+
+  /juegos.jsp:
+    get:
+      summary: Ver juegos
+      tags: [Juegos]
+      parameters:
+        - name: id
+          in: query
+          schema:
+            type: integer
+          description: ID del juego
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Buscar por nombre
+        - name: categoria_id
+          in: query
+          schema:
+            type: integer
+          description: Filtrar por categoría
+      responses:
+        "200":
+          description: Lista de juegos
+
+  /admin.jsp:
+    get:
+      summary: Dashboard admin
+      tags: [Admin]
+      parameters:
+        - name: seccion
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [resumen, ventas, usuarios]
+      responses:
+        "200":
+          description: OK
+
+    post:
+      summary: Agregar juego
+      tags: [Admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [titulo, slug, precio]
+              properties:
+                titulo:
+                  type: string
+                slug:
+                  type: string
+                descripcion:
+                  type: string
+                precio:
+                  type: number
+                imagen_url:
+                  type: string
+                video_url:
+                  type: string
+                fecha_lanzamiento:
+                  type: string
+                  format: date
+            example:
+              titulo: Nuevo Juego
+              slug: nuevo-juego
+              descripcion: Descripción del juego
+              precio: 199.00
+              imagen_url: https://...
+              video_url: https://...
+              fecha_lanzamiento: "2024-03-01"
+      responses:
+        "200":
+          description: Juego creado
+
+    put:
+      summary: Editar juego
+      tags: [Admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: integer
+                titulo:
+                  type: string
+                slug:
+                  type: string
+                descripcion:
+                  type: string
+                precio:
+                  type: number
+                imagen_url:
+                  type: string
+                video_url:
+                  type: string
+            example:
+              id: 1
+              precio: 150.00
+      responses:
+        "200":
+          description: Juego actualizado
+
+    delete:
+      summary: Eliminar juego
+      tags: [Admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: integer
+            example:
+              id: 1
+      responses:
+        "200":
+          description: Juego eliminado
+
+  /descuentos.jsp:
+    get:
+      summary: Ver descuentos
+      tags: [Descuentos]
+      parameters:
+        - name: juego_id
+          in: query
+          schema:
+            type: integer
+          description: Descuento de un juego específico
+      responses:
+        "200":
+          description: OK
+
+    post:
+      summary: Crear descuento
+      tags: [Descuentos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [juego_id, porcentaje, fecha_fin]
+              properties:
+                juego_id:
+                  type: integer
+                porcentaje:
+                  type: number
+                fecha_fin:
+                  type: string
+            example:
+              juego_id: 1
+              porcentaje: 25
+              fecha_fin: "2026-06-30 23:59:59"
+      responses:
+        "200":
+          description: Descuento creado
+
+    delete:
+      summary: Cancelar descuento
+      tags: [Descuentos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [juego_id]
+              properties:
+                juego_id:
+                  type: integer
+            example:
+              juego_id: 1
+      responses:
+        "200":
+          description: Descuento cancelado
+
+  /carrito.jsp:
+    get:
+      summary: Ver carrito
+      tags: [Carrito]
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          schema:
+            type: string
+          example: XD-12345678
+      responses:
+        "200":
+          description: OK
+
+    post:
+      summary: Agregar al carrito
+      tags: [Carrito]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, juego_id, cantidad]
+              properties:
+                user_id:
+                  type: string
+                juego_id:
+                  type: integer
+                cantidad:
+                  type: integer
+            example:
+              user_id: XD-12345678
+              juego_id: 1
+              cantidad: 1
+      responses:
+        "200":
+          description: Agregado al carrito
+
+  /checkout.jsp:
+    post:
+      summary: Checkout
+      tags: [Checkout]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id:
+                  type: string
+            example:
+              user_id: XD-12345678
+      responses:
+        "200":
+          description: Compra realizada
+
+  /ventas.jsp:
+    get:
+      summary: Historial de compras
+      tags: [Ventas]
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          schema:
+            type: string
+          example: XD-12345678
+      responses:
+        "200":
+          description: OK
+
+  /comentarios.jsp:
+    get:
+      summary: Ver comentarios
+      tags: [Comentarios]
+      parameters:
+        - name: juego_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+
+    post:
+      summary: Agregar comentario
+      tags: [Comentarios]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, juego_id, comentario]
+              properties:
+                user_id:
+                  type: string
+                juego_id:
+                  type: integer
+                comentario:
+                  type: string
+            example:
+              user_id: XD-12345678
+              juego_id: 1
+              comentario: Excelente juego!
+      responses:
+        "200":
+          description: Comentario agregado
+
+    put:
+      summary: Like a comentario
+      tags: [Comentarios]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comentario_id]
+              properties:
+                comentario_id:
+                  type: string
+            example:
+              comentario_id: uuid-del-comentario
+      responses:
+        "200":
+          description: Like agregado
+
+  /wishlist.jsp:
+    get:
+      summary: Ver wishlist
+      tags: [Wishlist]
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          schema:
+            type: string
+          example: XD-12345678
+      responses:
+        "200":
+          description: OK
+
+    post:
+      summary: Agregar a wishlist
+      tags: [Wishlist]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, juego_id]
+              properties:
+                user_id:
+                  type: string
+                juego_id:
+                  type: integer
+            example:
+              user_id: XD-12345678
+              juego_id: 1
+      responses:
+        "200":
+          description: Agregado a wishlist
+
+  /categorias.jsp:
+    get:
+      summary: Ver categorías
+      tags: [Categorias]
+      responses:
+        "200":
+          description: Lista de categorías
