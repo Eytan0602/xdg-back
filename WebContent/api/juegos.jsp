@@ -1,8 +1,24 @@
 <%@ page import="java.util.*" %>
+<%@ page import="java.sql.*" %>
 <%@ page contentType="application/json;charset=UTF-8" %>
+
 <%@ include file="../includes/db.jsp" %>
 <%@ include file="../includes/cors.jsp" %>
 <%@ include file="../includes/json-request.jsp" %>
+
+<%!
+private String escapeJson(String str) {
+    if(str == null) return "";
+
+    return str
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t");
+}
+%>
+
 <%
 Map<String,String> jsonBody = parseJsonBody(request);
 String metodo = request.getMethod();
@@ -18,30 +34,35 @@ try {
         // =========================
         // 1. BUSCAR POR ID
         // =========================
-        if(id != null) {
+        if(id != null && !id.trim().isEmpty()) {
 
             String sql = "SELECT * FROM juegos WHERE id=?";
             PreparedStatement ps = con.prepareStatement(sql);
             ps.setInt(1, Integer.parseInt(id));
+
             ResultSet rs = ps.executeQuery();
 
             if(rs.next()) {
-                String desc  = rs.getString("descripcion")       != null ? rs.getString("descripcion").replace("\"","'")       : "";
-                String slug  = rs.getString("slug")              != null ? rs.getString("slug")                                : "";
-                String img   = rs.getString("imagen_url")        != null ? rs.getString("imagen_url")                         : "";
-                String vid   = rs.getString("video_url")         != null ? rs.getString("video_url")                          : "";
-                String fecha = rs.getString("fecha_lanzamiento") != null ? rs.getString("fecha_lanzamiento")                  : "";
+
+                String titulo = escapeJson(rs.getString("titulo"));
+                String desc   = escapeJson(rs.getString("descripcion"));
+                String slug   = escapeJson(rs.getString("slug"));
+                String img    = escapeJson(rs.getString("imagen_url"));
+                String vid    = escapeJson(rs.getString("video_url"));
+                String fecha  = escapeJson(rs.getString("fecha_lanzamiento"));
 
                 out.print("{");
-                out.print("\"id\":"                  + rs.getInt("id")           + ",");
-                out.print("\"titulo\":\""             + rs.getString("titulo")    + "\",");
-                out.print("\"slug\":\""               + slug                      + "\",");
-                out.print("\"descripcion\":\""        + desc                      + "\",");
-                out.print("\"imagen_url\":\""         + img                       + "\",");
-                out.print("\"video_url\":\""          + vid                       + "\",");
-                out.print("\"fecha_lanzamiento\":\"" + fecha                     + "\",");
-                out.print("\"precio\":"              + rs.getDouble("precio"));
+                out.print("\"id\":" + rs.getInt("id") + ",");
+                out.print("\"titulo\":\"" + titulo + "\",");
+                out.print("\"slug\":\"" + slug + "\",");
+                out.print("\"descripcion\":\"" + desc + "\",");
+                out.print("\"imagen_url\":\"" + img + "\",");
+                out.print("\"video_url\":\"" + vid + "\",");
+                out.print("\"fecha_lanzamiento\":\"" + fecha + "\",");
+                out.print("\"precio\":" + rs.getDouble("precio"));
                 out.print("}");
+            } else {
+                out.print("{}");
             }
         }
 
@@ -51,26 +72,36 @@ try {
         else {
 
             StringBuilder sql = new StringBuilder("SELECT * FROM juegos");
+
             boolean firstFilter = true;
 
             if(categoriaId != null && !categoriaId.trim().isEmpty()) {
-                sql.append(" WHERE id IN (SELECT juego_id FROM juego_categoria WHERE categoria_id=?)");
+                sql.append(" WHERE id IN (");
+                sql.append("SELECT juego_id FROM juego_categoria WHERE categoria_id=?");
+                sql.append(")");
+
                 firstFilter = false;
             }
 
             if(q != null && !q.trim().isEmpty()) {
+
                 if(firstFilter) {
-sql.append(" WHERE titulo ILIKE ?");            
-    } else {
+                    sql.append(" WHERE titulo ILIKE ?");
+                } else {
                     sql.append(" AND titulo ILIKE ?");
                 }
             }
 
+            sql.append(" ORDER BY id DESC");
+
             PreparedStatement ps = con.prepareStatement(sql.toString());
+
             int index = 1;
+
             if(categoriaId != null && !categoriaId.trim().isEmpty()) {
                 ps.setInt(index++, Integer.parseInt(categoriaId));
             }
+
             if(q != null && !q.trim().isEmpty()) {
                 ps.setString(index++, "%" + q + "%");
             }
@@ -81,17 +112,21 @@ sql.append(" WHERE titulo ILIKE ?");
             boolean first = true;
 
             while(rs.next()) {
-                if(!first) json.append(",");
 
-                String desc  = rs.getString("descripcion")       != null ? rs.getString("descripcion").replace("\"","'")  : "";
-                String slug  = rs.getString("slug")              != null ? rs.getString("slug")                           : "";
-                String img   = rs.getString("imagen_url")        != null ? rs.getString("imagen_url")                    : "";
-                String vid   = rs.getString("video_url")         != null ? rs.getString("video_url")                     : "";
-                String fecha = rs.getString("fecha_lanzamiento") != null ? rs.getString("fecha_lanzamiento")             : "";
+                if(!first) {
+                    json.append(",");
+                }
+
+                String titulo = escapeJson(rs.getString("titulo"));
+                String desc   = escapeJson(rs.getString("descripcion"));
+                String slug   = escapeJson(rs.getString("slug"));
+                String img    = escapeJson(rs.getString("imagen_url"));
+                String vid    = escapeJson(rs.getString("video_url"));
+                String fecha  = escapeJson(rs.getString("fecha_lanzamiento"));
 
                 json.append("{")
                     .append("\"id\":").append(rs.getInt("id")).append(",")
-                    .append("\"titulo\":\"").append(rs.getString("titulo")).append("\",")
+                    .append("\"titulo\":\"").append(titulo).append("\",")
                     .append("\"slug\":\"").append(slug).append("\",")
                     .append("\"descripcion\":\"").append(desc).append("\",")
                     .append("\"imagen_url\":\"").append(img).append("\",")
@@ -104,11 +139,17 @@ sql.append(" WHERE titulo ILIKE ?");
             }
 
             json.append("]");
+
             out.print(json.toString());
         }
     }
 
 } catch(Exception e){
-    out.print("{\"error\":\""+e.getMessage()+"\"}");
+
+    String error = escapeJson(e.getMessage());
+
+    out.print("{");
+    out.print("\"error\":\"" + error + "\"");
+    out.print("}");
 }
 %>
