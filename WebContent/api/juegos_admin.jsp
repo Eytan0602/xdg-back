@@ -39,91 +39,111 @@ String role = (String) session.getAttribute("user_role");
 boolean esAdmin = "admin".equals(role);
 
 try {
-  if ("GET".equalsIgnoreCase(method)) {
+  if("GET".equalsIgnoreCase(method)) {
+    String id = param(request, jsonBody, "id");
+    String q = param(request, jsonBody, "q");
+    String categoriaId = param(request, jsonBody, "categoria_id");
 
-  String id = param(request, jsonBody, "id");
-  String q = param(request, jsonBody, "q");
-  String categoriaId = param(request, jsonBody, "categoria_id");
+    if(id != null && !id.trim().isEmpty()) {
+      String sql = "SELECT j.*, jc.categoria_id, c.nombre AS categoria_nombre " +
+                   "FROM juegos j " +
+                   "LEFT JOIN juego_categoria jc ON jc.juego_id = j.id " +
+                   "LEFT JOIN categorias c ON c.id = jc.categoria_id " +
+                   "WHERE j.id = ?";
+      PreparedStatement ps = con.prepareStatement(sql);
+      ps.setInt(1, Integer.parseInt(id));
+      ResultSet rs = ps.executeQuery();
+      if(rs.next()) {
+        String desc  = rs.getString("descripcion")       != null ? rs.getString("descripcion").replace("\"","'")       : "";
+        String slug  = rs.getString("slug")              != null ? rs.getString("slug")                                : "";
+        String img   = rs.getString("imagen_url")        != null ? rs.getString("imagen_url")                         : "";
+        String vid   = rs.getString("video_url")         != null ? rs.getString("video_url")                          : "";
+        String fecha = rs.getString("fecha_lanzamiento") != null ? rs.getString("fecha_lanzamiento")                  : "";
+        String categoriaNombre = rs.getString("categoria_nombre") != null ? rs.getString("categoria_nombre") : "";
+        Integer categoria_id = rs.getObject("categoria_id") != null ? rs.getInt("categoria_id") : null;
 
-  if (id != null && !id.trim().isEmpty()) {
-    String sql =
-      "SELECT j.* FROM juegos j WHERE j.id = ?";
+        out.print("{");
+        out.print("\"id\":" + rs.getInt("id") + ",");
+        out.print("\"titulo\":\"" + escapeJson(rs.getString("titulo")) + "\",");
+        out.print("\"slug\":\"" + escapeJson(slug) + "\",");
+        out.print("\"descripcion\":\"" + escapeJson(desc) + "\",");
+        out.print("\"imagen_url\":\"" + escapeJson(img) + "\",");
+        out.print("\"video_url\":\"" + escapeJson(vid) + "\",");
+        out.print("\"fecha_lanzamiento\":\"" + escapeJson(fecha) + "\",");
+        out.print("\"precio\":" + rs.getDouble("precio") + ",");
+        out.print("\"categoria_id\":" + (categoria_id != null ? categoria_id : "null") + ",");
+        out.print("\"categoria_nombre\":\"" + escapeJson(categoriaNombre) + "\"");
+        out.print("}");
+      } else {
+        out.print("{\"error\":\"not_found\"}");
+      }
+      return;
+    }
 
-    PreparedStatement ps = con.prepareStatement(sql);
-    ps.setInt(1, Integer.parseInt(id));
+    StringBuilder sql = new StringBuilder(
+      "SELECT j.*, jc.categoria_id, c.nombre AS categoria_nombre FROM juegos j " +
+      "LEFT JOIN juego_categoria jc ON jc.juego_id = j.id " +
+      "LEFT JOIN categorias c ON c.id = jc.categoria_id"
+    );
+    boolean where = false;
+    if(categoriaId != null && !categoriaId.trim().isEmpty()) {
+      sql.append(" WHERE jc.categoria_id = ?");
+      where = true;
+    }
+    if(q != null && !q.trim().isEmpty()) {
+      sql.append(where ? " AND " : " WHERE ");
+      sql.append("j.titulo ILIKE ?");
+    }
+sql.append(" ORDER BY j.updated_at DESC");
+    PreparedStatement ps = con.prepareStatement(sql.toString());
+    int idx=1;
+    if(categoriaId != null && !categoriaId.trim().isEmpty()) {
+      ps.setInt(idx++, Integer.parseInt(categoriaId));
+    }
+    if(q != null && !q.trim().isEmpty()) {
+      ps.setString(idx++, "%" + q + "%");
+    }
 
     ResultSet rs = ps.executeQuery();
+    StringBuilder json = new StringBuilder("[");
+    boolean first = true;
+    while(rs.next()) {
 
-    if (rs.next()) {
-      out.print("{"
-        + "\"id\":" + rs.getInt("id") + ","
-        + "\"titulo\":\"" + escapeJson(rs.getString("titulo")) + "\","
-        + "\"descripcion\":\"" + escapeJson(rs.getString("descripcion")) + "\","
-        + "\"imagen_url\":\"" + escapeJson(rs.getString("imagen_url")) + "\","
-        + "\"video_url\":\"" + escapeJson(rs.getString("video_url")) + "\","
-        + "\"fecha_lanzamiento\":\"" + escapeJson(rs.getString("fecha_lanzamiento")) + "\","
-        + "\"precio\":" + rs.getDouble("precio")
-        + "}");
-    } else {
-      out.print("{\"error\":\"not_found\"}");
-    }
-    return;
-  }
+    if(!first) json.append(",");
 
-  StringBuilder sql = new StringBuilder();
-  sql.append("SELECT DISTINCT j.* FROM juegos j WHERE 1=1 ");
+    String updatedAt =
+        rs.getString("updated_at") != null
+        ? rs.getString("updated_at")
+        : "";
 
-  if (categoriaId != null && !categoriaId.trim().isEmpty()) {
-    sql.append(" AND EXISTS (")
-       .append("SELECT 1 FROM juego_categoria jc ")
-       .append("WHERE jc.juego_id = j.id AND jc.categoria_id = ?")
-       .append(") ");
-  }
-
-  if (q != null && !q.trim().isEmpty()) {
-    sql.append(" AND j.titulo ILIKE ? ");
-  }
-
-  sql.append(" ORDER BY j.updated_at DESC");
-
-  PreparedStatement ps = con.prepareStatement(sql.toString());
-
-  int idx = 1;
-
-  if (categoriaId != null && !categoriaId.trim().isEmpty()) {
-    ps.setInt(idx++, Integer.parseInt(categoriaId));
-  }
-
-  if (q != null && !q.trim().isEmpty()) {
-    ps.setString(idx++, "%" + q + "%");
-  }
-
-  ResultSet rs = ps.executeQuery();
-
-  StringBuilder json = new StringBuilder("[");
-  boolean first = true;
-
-  while (rs.next()) {
-    if (!first) json.append(",");
+    String desc  = rs.getString("descripcion") != null ? rs.getString("descripcion").replace("\"","'") : "";
+    String slug  = rs.getString("slug") != null ? rs.getString("slug") : "";
+    String img   = rs.getString("imagen_url") != null ? rs.getString("imagen_url") : "";
+    String vid   = rs.getString("video_url") != null ? rs.getString("video_url") : "";
+    String fecha = rs.getString("fecha_lanzamiento") != null ? rs.getString("fecha_lanzamiento") : "";
+    String categoriaNombre = rs.getString("categoria_nombre") != null ? rs.getString("categoria_nombre") : "";
+    Integer categoria_id = rs.getObject("categoria_id") != null ? rs.getInt("categoria_id") : null;
 
     json.append("{")
-      .append("\"id\":").append(rs.getInt("id")).append(",")
-      .append("\"titulo\":\"").append(escapeJson(rs.getString("titulo"))).append("\",")
-      .append("\"descripcion\":\"").append(escapeJson(rs.getString("descripcion"))).append("\",")
-      .append("\"imagen_url\":\"").append(escapeJson(rs.getString("imagen_url"))).append("\",")
-      .append("\"video_url\":\"").append(escapeJson(rs.getString("video_url"))).append("\",")
-      .append("\"fecha_lanzamiento\":\"").append(escapeJson(rs.getString("fecha_lanzamiento"))).append("\",")
-      .append("\"precio\":").append(rs.getDouble("precio"))
-      .append("}");
+        .append("\"id\":").append(rs.getInt("id")).append(",")
+        .append("\"titulo\":\"").append(escapeJson(rs.getString("titulo"))).append("\",")
+        .append("\"updated_at\":\"").append(escapeJson(updatedAt)).append("\",")
+        .append("\"slug\":\"").append(escapeJson(slug)).append("\",")
+        .append("\"descripcion\":\"").append(escapeJson(desc)).append("\",")
+        .append("\"imagen_url\":\"").append(escapeJson(img)).append("\",")
+        .append("\"video_url\":\"").append(escapeJson(vid)).append("\",")
+        .append("\"fecha_lanzamiento\":\"").append(escapeJson(fecha)).append("\",")
+        .append("\"precio\":").append(rs.getDouble("precio")).append(",")
+        .append("\"categoria_id\":").append(categoria_id != null ? categoria_id : "null").append(",")
+        .append("\"categoria_nombre\":\"").append(escapeJson(categoriaNombre)).append("\"")
+        .append("}");
 
     first = false;
-  }
-
-  json.append("]");
-
-  out.print(json.toString());
-  return;
 }
+    json.append("]");
+    out.print(json.toString());
+    return;
+  }
 
   else if("POST".equalsIgnoreCase(method)) {
     if(!esAdmin) { out.print("{\"error\":\"unauthorized\"}"); return; }

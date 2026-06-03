@@ -11,9 +11,7 @@ String method = request.getMethod();
 
 try {
 
-    // ==================================================
-    // POST -> AGREGAR AL CARRITO
-    // ==================================================
+    
     if("POST".equals(method)) {
 
         String user = param(request, jsonBody, "user_id");
@@ -81,7 +79,6 @@ try {
 
         double precio = priceRs.getDouble("precio");
 
-        // ya existe?
         String detailSql =
             "SELECT id,cantidad FROM carrito_detalle WHERE carrito_id=? AND juego_id=?";
 
@@ -127,9 +124,7 @@ try {
 
     }
 
-    // ==================================================
-    // GET -> VER CARRITO
-    // ==================================================
+   
     else if("GET".equals(method)) {
 
         String user = request.getParameter("user_id");
@@ -188,9 +183,7 @@ try {
 
     }
 
-    // ==================================================
-// DELETE -> ELIMINAR ITEM DEL CARRITO
-// ==================================================
+
 else if("DELETE".equals(method)) {
 
     String detalleId = param(request, jsonBody, "detalle_id");

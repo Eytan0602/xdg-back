@@ -11,9 +11,7 @@ String method = request.getMethod();
 
 try {
 
-    // =========================
-    // GET (LISTAR)
-    // =========================
+    
     if("GET".equals(method)) {
 
         String sql = "SELECT * FROM categorias";
@@ -41,9 +39,7 @@ try {
         out.print(json.toString());
     }
 
-    // =========================
-    // POST (CREAR)
-    // =========================
+    
     else if("POST".equals(method)) {
 
         String nombre = param(request, jsonBody, "nombre");
@@ -63,9 +59,7 @@ try {
         out.print("{\"success\":"+(r>0)+"}");
     }
 
-    // =========================
-    // PUT (ACTUALIZAR)
-    // =========================
+    
     else if("PUT".equals(method)) {
 
         String id = param(request, jsonBody, "id");
@@ -87,9 +81,7 @@ try {
         out.print("{\"updated\":"+(r>0)+"}");
     }
 
-    // =========================
-    // DELETE
-    // =========================
+    
     else if("DELETE".equals(method)) {
 
         String id = param(request, jsonBody, "id");
