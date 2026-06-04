@@ -1,68 +1,132 @@
-<%@ page import="java.sql.*" %>
-<%@ page import="java.util.*" %>
+<%@ page import="java.sql.*, java.util.*" %>
 <%@ page contentType="application/json;charset=UTF-8" %>
 
+<%
+response.setHeader("Access-Control-Allow-Origin", "http://localhost:4321");
+response.setHeader("Access-Control-Allow-Credentials", "true");
+response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+    response.setStatus(200);
+    return;
+}
+%>
+
 <%@ include file="../includes/db.jsp" %>
-<%@ include file="../includes/cors.jsp" %>
 <%@ include file="../includes/json-request.jsp" %>
 
 <%
 Map<String,String> jsonBody = parseJsonBody(request);
+
 try {
 
     String usuario_id = param(request, jsonBody, "user_id");
-    if(usuario_id == null) {
+
+    if (usuario_id == null) {
         out.print("{\"error\":\"missing user_id\"}");
         return;
     }
 
-    String ventaId = UUID.randomUUID().toString();
+    con.setAutoCommit(false);
 
-    String ventaSQL = "INSERT INTO ventas(id,usuario_id) VALUES(?,?)";
-    PreparedStatement ventaPS = con.prepareStatement(ventaSQL);
-    ventaPS.setString(1, ventaId);
-    ventaPS.setString(2, usuario_id);
-    ventaPS.executeUpdate();
-
+    // =========================
+    // 1. OBTENER ITEMS
+    // =========================
     String carritoSQL =
-    "SELECT cd.juego_id, cd.cantidad, cd.precio_unitario " +
-    "FROM carrito_detalle cd " +
-    "INNER JOIN carritos c ON c.id = cd.carrito_id " +
-    "WHERE c.usuario_id=?";
+        "SELECT cd.juego_id, cd.cantidad, cd.precio_unitario " +
+        "FROM carrito_detalle cd " +
+        "INNER JOIN carritos c ON c.id = cd.carrito_id " +
+        "WHERE c.usuario_id=?";
 
-    PreparedStatement ps = con.prepareStatement(carritoSQL);
-    ps.setString(1, usuario_id);
+    PreparedStatement psCarrito = con.prepareStatement(carritoSQL);
+    psCarrito.setString(1, usuario_id);
+    ResultSet items = psCarrito.executeQuery();
 
-    ResultSet items = ps.executeQuery();
+    class Item {
+    String juegoId;
+    int cantidad;
+    double precio;
 
-    boolean hasItems = false;
-    while(items.next()) {
-        hasItems = true;
-        String sql = "INSERT INTO venta_detalle(venta_id,juego_id,precio,cantidad) VALUES(?,?,?,?)";
-        PreparedStatement det = con.prepareStatement(sql);
-        det.setString(1, ventaId);
-        det.setInt(2, items.getInt("juego_id"));
-        det.setDouble(3, items.getDouble("precio_unitario"));
-        det.setInt(4, items.getInt("cantidad"));
-        det.executeUpdate();
+    Item(String j, int c, double p) {
+        juegoId = j;
+        cantidad = c;
+        precio = p;
     }
+}
 
-    if(!hasItems) {
+    List<Item> itemList = new ArrayList<Item>();
+
+    while (items.next()) {
+    itemList.add(new Item(
+        items.getString("juego_id"),  // <-- getString, no getInt
+        items.getInt("cantidad"),
+        items.getDouble("precio_unitario")
+    ));
+}
+
+    if (itemList.isEmpty()) {
         out.print("{\"success\":false,\"message\":\"cart empty\"}");
         return;
     }
 
-    String clean =
-    "DELETE FROM carrito_detalle " +
-    "WHERE carrito_id = (SELECT id FROM carritos WHERE usuario_id=?)";
+   // =========================
+// 2. CREAR VENTA
+// =========================
+PreparedStatement ventaPS = con.prepareStatement(
+    "INSERT INTO ventas(usuario_id, fecha) VALUES(CAST(? AS UUID), NOW()) RETURNING id"
+);
 
-PreparedStatement cl = con.prepareStatement(clean);
-cl.setString(1, usuario_id);
-cl.executeUpdate();
+ventaPS.setString(1, usuario_id);
+ResultSet keys = ventaPS.executeQuery();
 
-    out.print("{\"success\":true,\"venta_id\":\""+ventaId+"\"}");
+String ventaId = null;
+if (keys.next()) {
+    ventaId = keys.getString(1);
+}
 
-} catch(Exception e) {
-    out.print("{\"error\":\"" + e.getMessage().replace("\"", "") + "\"}");
+if (ventaId == null) {
+    throw new Exception("No se pudo obtener el ID de la venta");
+}
+
+    // =========================
+    // 3. INSERTAR DETALLE VENTA
+    // =========================
+    PreparedStatement detPS = con.prepareStatement(
+    "INSERT INTO venta_detalle(venta_id, juego_id, precio, cantidad) VALUES(CAST(? AS UUID), CAST(? AS INTEGER), ?, ?)"
+);
+
+    for (Item it : itemList) {
+    detPS.setString(1, ventaId);
+    detPS.setString(2, it.juegoId);
+    detPS.setDouble(3, it.precio);
+    detPS.setInt(4, it.cantidad);
+    detPS.executeUpdate();
+}
+
+    // =========================
+    // 4. LIMPIAR CARRITO
+    // =========================
+    PreparedStatement clPS = con.prepareStatement(
+        "DELETE FROM carrito_detalle cd " +
+        "USING carritos c " +
+        "WHERE cd.carrito_id = c.id " +
+        "AND c.usuario_id = ?"
+    );
+
+    clPS.setString(1, usuario_id);
+    clPS.executeUpdate();
+
+    con.commit();
+
+    out.print("{\"success\":true,\"venta_id\":\"" + ventaId + "\"}");
+
+} catch (Exception e) {
+
+    try { con.rollback(); } catch(Exception ex) {}
+
+    e.printStackTrace();
+
+    out.print("{\"error\":\"" + e.toString().replace("\"","") + "\"}");
 }
 %>

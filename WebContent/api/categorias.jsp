@@ -1,8 +1,16 @@
 <%@ page import="java.sql.*, java.util.*" %>
 <%@ page contentType="application/json;charset=UTF-8" %>
-
+<%
+response.setHeader("Access-Control-Allow-Origin", "http://localhost:4321");
+response.setHeader("Access-Control-Allow-Credentials", "true");
+response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+    response.setStatus(200);
+    return;
+}
+%>
 <%@ include file="../includes/db.jsp" %>
-<%@ include file="../includes/cors.jsp" %>
 <%@ include file="../includes/json-request.jsp" %>
 
 <%
@@ -11,100 +19,74 @@ String method = request.getMethod();
 
 try {
 
-    // =========================
-    // GET (LISTAR)
-    // =========================
-    if("GET".equals(method)) {
-
-        String sql = "SELECT * FROM categorias";
-
-        PreparedStatement ps = con.prepareStatement(sql);
-        ResultSet rs = ps.executeQuery();
+    if ("GET".equals(method)) {
+        PreparedStatement psGet = con.prepareStatement("SELECT * FROM categorias");
+        ResultSet rsGet = psGet.executeQuery();
 
         StringBuilder json = new StringBuilder("[");
         boolean first = true;
 
-        while(rs.next()) {
-
-            if(!first) json.append(",");
-
+        while (rsGet.next()) {
+            if (!first) json.append(",");
             json.append("{")
-            .append("\"id\":").append(rs.getInt("id")).append(",")
-            .append("\"nombre\":\"").append(rs.getString("nombre")).append("\"")
-            .append("}");
-
+                .append("\"id\":").append(rsGet.getInt("id")).append(",")
+                .append("\"nombre\":\"").append(rsGet.getString("nombre")).append("\"")
+                .append("}");
             first = false;
         }
 
         json.append("]");
-
         out.print(json.toString());
     }
 
-    // =========================
-    // POST (CREAR)
-    // =========================
-    else if("POST".equals(method)) {
-
+    else if ("POST".equals(method)) {
         String nombre = param(request, jsonBody, "nombre");
 
-        if(nombre == null || nombre.trim().isEmpty()){
+        if (nombre == null || nombre.trim().isEmpty()) {
             out.print("{\"error\":\"nombre required\"}");
             return;
         }
 
-        String sql = "INSERT INTO categorias(nombre) VALUES(?)";
+        PreparedStatement psPost = con.prepareStatement("INSERT INTO categorias(nombre) VALUES(?)");
+        psPost.setString(1, nombre);
+        int rPost = psPost.executeUpdate();
 
-        PreparedStatement ps = con.prepareStatement(sql);
-        ps.setString(1, nombre);
-
-        int r = ps.executeUpdate();
-
-        out.print("{\"success\":"+(r>0)+"}");
+        out.print("{\"success\":" + (rPost > 0) + "}");
     }
 
-    // =========================
-    // PUT (ACTUALIZAR)
-    // =========================
-    else if("PUT".equals(method)) {
-
+    else if ("PUT".equals(method)) {
         String id = param(request, jsonBody, "id");
         String nombre = param(request, jsonBody, "nombre");
 
-        if(id == null || nombre == null){
+        if (id == null || nombre == null) {
             out.print("{\"error\":\"missing fields\"}");
             return;
         }
 
-        String sql = "UPDATE categorias SET nombre=? WHERE id=?";
+        PreparedStatement psPut = con.prepareStatement("UPDATE categorias SET nombre=? WHERE id=?");
+        psPut.setString(1, nombre);
+        psPut.setInt(2, Integer.parseInt(id));
+        int rPut = psPut.executeUpdate();
 
-        PreparedStatement ps = con.prepareStatement(sql);
-        ps.setString(1, nombre);
-        ps.setInt(2, Integer.parseInt(id));
-
-        int r = ps.executeUpdate();
-
-        out.print("{\"updated\":"+(r>0)+"}");
+        out.print("{\"updated\":" + (rPut > 0) + "}");
     }
 
-    // =========================
-    // DELETE
-    // =========================
-    else if("DELETE".equals(method)) {
-
+    else if ("DELETE".equals(method)) {
         String id = param(request, jsonBody, "id");
 
-        String sql = "DELETE FROM categorias WHERE id=?";
+        if (id == null) {
+            out.print("{\"error\":\"missing id\"}");
+            return;
+        }
 
-        PreparedStatement ps = con.prepareStatement(sql);
-        ps.setInt(1, Integer.parseInt(id));
+        PreparedStatement psDel = con.prepareStatement("DELETE FROM categorias WHERE id=?");
+        psDel.setInt(1, Integer.parseInt(id));
+        int rDel = psDel.executeUpdate();
 
-        int r = ps.executeUpdate();
-
-        out.print("{\"deleted\":"+(r>0)+"}");
+        out.print("{\"deleted\":" + (rDel > 0) + "}");
     }
 
-} catch(Exception e){
-    out.print("{\"error\":\""+e.getMessage().replace("\"","")+"\"}");
+} catch (Exception e) {
+    out.print("{\"error\":\"" + e.getMessage().replace("\"", "") + "\"}");
 }
 %>

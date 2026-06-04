@@ -1,8 +1,16 @@
 ﻿﻿<%@ page import="java.sql.*" %>
 <%@ page contentType="application/json;charset=UTF-8" %>
-
+<%
+response.setHeader("Access-Control-Allow-Origin", "http://localhost:4321");
+response.setHeader("Access-Control-Allow-Credentials", "true");
+response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+    response.setStatus(200);
+    return;
+}
+%>
 <%@ include file="../includes/db.jsp" %>
-<%@ include file="../includes/cors.jsp" %>
 <%@ include file="../includes/json-request.jsp" %>
 
 <%
@@ -11,212 +19,189 @@ String method = request.getMethod();
 
 try {
 
-    // ==================================================
-    // POST -> AGREGAR AL CARRITO
-    // ==================================================
-    if("POST".equals(method)) {
+    if ("POST".equals(method)) {
 
         String user = param(request, jsonBody, "user_id");
         String juegoIdParam = param(request, jsonBody, "juego_id");
-        int cantidad = 1;
 
-        if(user == null || juegoIdParam == null) {
+        if (user == null || juegoIdParam == null) {
             out.print("{\"error\":\"missing fields\"}");
             return;
         }
 
-        if(param(request, jsonBody, "cantidad") != null) {
-            cantidad = Integer.parseInt(param(request, jsonBody, "cantidad"));
-
-            if(cantidad < 1) {
-                cantidad = 1;
-            }
-        }
+        int cantidad = Integer.parseInt(
+            param(request, jsonBody, "cantidad") != null
+                ? param(request, jsonBody, "cantidad")
+                : "1"
+        );
 
         int juego_id = Integer.parseInt(juegoIdParam);
 
-        String cartSql = "SELECT id FROM carritos WHERE usuario_id=?";
-        PreparedStatement cartPs = con.prepareStatement(cartSql);
+        PreparedStatement cartPs = con.prepareStatement(
+            "SELECT id FROM carritos WHERE usuario_id=?"
+        );
         cartPs.setString(1, user);
-
         ResultSet cartRs = cartPs.executeQuery();
 
         int carritoId;
 
-        if(cartRs.next()) {
-
+        if (cartRs.next()) {
             carritoId = cartRs.getInt("id");
-
         } else {
-
-            String insertCart = "INSERT INTO carritos(usuario_id) VALUES(?)";
-
-            PreparedStatement insertCartPs =
-                con.prepareStatement(insertCart, Statement.RETURN_GENERATED_KEYS);
-
+            PreparedStatement insertCartPs = con.prepareStatement(
+                "INSERT INTO carritos(usuario_id) VALUES(?) RETURNING id"
+            );
             insertCartPs.setString(1, user);
-            insertCartPs.executeUpdate();
-
-            ResultSet keys = insertCartPs.getGeneratedKeys();
-
-            if(keys.next()) {
-                carritoId = keys.getInt(1);
-            } else {
+            ResultSet keys = insertCartPs.executeQuery();
+            if (!keys.next()) {
                 out.print("{\"error\":\"cannot create cart\"}");
                 return;
             }
+            carritoId = keys.getInt(1);
         }
 
-        String priceSql = "SELECT precio FROM juegos WHERE id=?";
+        double precio;
 
-        PreparedStatement pricePs = con.prepareStatement(priceSql);
-        pricePs.setInt(1, juego_id);
+        PreparedStatement descPs = con.prepareStatement(
+            "SELECT ROUND(precio_original * (1 - porcentaje / 100.0),2) precio_final " +
+            "FROM descuentos " +
+            "WHERE juego_id=? AND activo=TRUE AND fecha_fin > NOW()"
+        );
+        descPs.setInt(1, juego_id);
+        ResultSet descRs = descPs.executeQuery();
 
-        ResultSet priceRs = pricePs.executeQuery();
-
-        if(!priceRs.next()) {
-            out.print("{\"error\":\"game not found\"}");
-            return;
+        if (descRs.next()) {
+            precio = descRs.getDouble("precio_final");
+        } else {
+            PreparedStatement pricePs = con.prepareStatement(
+                "SELECT precio FROM juegos WHERE id=?"
+            );
+            pricePs.setInt(1, juego_id);
+            ResultSet priceRs = pricePs.executeQuery();
+            if (!priceRs.next()) {
+                out.print("{\"error\":\"game not found\"}");
+                return;
+            }
+            precio = priceRs.getDouble("precio");
         }
 
-        double precio = priceRs.getDouble("precio");
-
-        // ya existe?
-        String detailSql =
-            "SELECT id,cantidad FROM carrito_detalle WHERE carrito_id=? AND juego_id=?";
-
-        PreparedStatement detailPs = con.prepareStatement(detailSql);
-
+        PreparedStatement detailPs = con.prepareStatement(
+            "SELECT id, cantidad FROM carrito_detalle WHERE carrito_id=? AND juego_id=?"
+        );
         detailPs.setInt(1, carritoId);
         detailPs.setInt(2, juego_id);
-
         ResultSet detailRs = detailPs.executeQuery();
 
-        int updated = 0;
+        if (detailRs.next()) {
+            int detalleId = detailRs.getInt("id");
+            int actualCantidad = detailRs.getInt("cantidad");
 
-        if(detailRs.next()) {
+            int nuevaCantidad;
+            if (cantidad < 0) {
+                nuevaCantidad = actualCantidad - Math.abs(cantidad);
+            } else {
+                nuevaCantidad = actualCantidad + cantidad;
+            }
 
-            int actual = detailRs.getInt("cantidad");
-
-            String updateSql =
-                "UPDATE carrito_detalle SET cantidad=? WHERE id=?";
-
-            PreparedStatement updatePs = con.prepareStatement(updateSql);
-
-            updatePs.setInt(1, actual + cantidad);
-            updatePs.setInt(2, detailRs.getInt("id"));
-
-            updated = updatePs.executeUpdate();
-
+            if (nuevaCantidad <= 0) {
+                PreparedStatement delPs = con.prepareStatement(
+                    "DELETE FROM carrito_detalle WHERE id=?"
+                );
+                delPs.setInt(1, detalleId);
+                delPs.executeUpdate();
+            } else {
+                PreparedStatement updatePs = con.prepareStatement(
+                    "UPDATE carrito_detalle SET cantidad=? WHERE id=?"
+                );
+                updatePs.setInt(1, nuevaCantidad);
+                updatePs.setInt(2, detalleId);
+                updatePs.executeUpdate();
+            }
         } else {
-
-            String insertSql =
-                "INSERT INTO carrito_detalle(carrito_id,juego_id,cantidad,precio_unitario) VALUES(?,?,?,?)";
-
-            PreparedStatement insertPs = con.prepareStatement(insertSql);
-
-            insertPs.setInt(1, carritoId);
-            insertPs.setInt(2, juego_id);
-            insertPs.setInt(3, cantidad);
-            insertPs.setDouble(4, precio);
-
-            updated = insertPs.executeUpdate();
+            if (cantidad > 0) {
+                PreparedStatement insertPs = con.prepareStatement(
+                    "INSERT INTO carrito_detalle (carrito_id, juego_id, cantidad, precio_unitario) " +
+                    "VALUES(?,?,?,?)"
+                );
+                insertPs.setInt(1, carritoId);
+                insertPs.setInt(2, juego_id);
+                insertPs.setInt(3, cantidad);
+                insertPs.setDouble(4, precio);
+                insertPs.executeUpdate();
+            }
         }
 
-        out.print("{\"success\":"+(updated>0)+"}");
+        out.print("{\"success\":true}");
 
-    }
-
-    // ==================================================
-    // GET -> VER CARRITO
-    // ==================================================
-    else if("GET".equals(method)) {
+    } else if ("GET".equals(method)) {
 
         String user = request.getParameter("user_id");
 
-        if(user == null) {
-            out.print("{\"error\":\"missing user_id\"}");
+        if (user == null) {
+            out.print("[]");
             return;
         }
 
         String sql =
-            "SELECT " +
-            "cd.id, " +
-            "j.id as juego_id, " +
-            "j.titulo, " +
-            "j.imagen_url, " +
-            "j.precio, " +
-            "cd.cantidad, " +
-            "(j.precio * cd.cantidad) as subtotal " +
+            "SELECT cd.id, j.id as juego_id, j.titulo, j.imagen_url, j.precio, " +
+            "cd.cantidad, cd.precio_unitario " +
             "FROM carritos c " +
-            "INNER JOIN carrito_detalle cd ON c.id = cd.carrito_id " +
-            "INNER JOIN juegos j ON j.id = cd.juego_id " +
-            "WHERE c.usuario_id=?";
+            "JOIN carrito_detalle cd ON c.id = cd.carrito_id " +
+            "JOIN juegos j ON j.id = cd.juego_id " +
+            "WHERE c.usuario_id = ?";
 
         PreparedStatement ps = con.prepareStatement(sql);
-
         ps.setString(1, user);
-
         ResultSet rs = ps.executeQuery();
 
         StringBuilder json = new StringBuilder("[");
-
         boolean first = true;
 
-        while(rs.next()) {
+        while (rs.next()) {
+            if (!first) json.append(",");
 
-            if(!first) {
-                json.append(",");
-            }
+            String titulo    = rs.getString("titulo") != null ? rs.getString("titulo").replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n").replace("\r","\\r").replace("\t","\\t") : "";
+            String imagenUrl = rs.getString("imagen_url") != null ? rs.getString("imagen_url").replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n").replace("\r","\\r").replace("\t","\\t") : "";
 
             json.append("{")
                 .append("\"detalle_id\":").append(rs.getInt("id")).append(",")
                 .append("\"juego_id\":").append(rs.getInt("juego_id")).append(",")
-                .append("\"titulo\":\"").append(rs.getString("titulo")).append("\",")
-                .append("\"imagen_url\":\"").append(rs.getString("imagen_url") != null ? rs.getString("imagen_url") : "").append("\",")
+                .append("\"titulo\":\"").append(titulo).append("\",")
+                .append("\"imagen_url\":\"").append(imagenUrl).append("\",")
                 .append("\"precio\":").append(rs.getDouble("precio")).append(",")
+                .append("\"precio_final\":").append(rs.getDouble("precio_unitario")).append(",")
                 .append("\"cantidad\":").append(rs.getInt("cantidad")).append(",")
-                .append("\"subtotal\":").append(rs.getDouble("subtotal"))
+                .append("\"porcentaje\":null,")
+                .append("\"precio_original\":null")
                 .append("}");
 
             first = false;
         }
 
         json.append("]");
-
         out.print(json.toString());
 
-    }
+    } else if ("DELETE".equals(method)) {
 
-    // ==================================================
-// DELETE -> ELIMINAR ITEM DEL CARRITO
-// ==================================================
-else if("DELETE".equals(method)) {
+        String detalleId = param(request, jsonBody, "detalle_id");
 
-    String detalleId = param(request, jsonBody, "detalle_id");
+        if (detalleId == null) {
+            out.print("{\"error\":\"missing detalle_id\"}");
+            return;
+        }
 
-    if(detalleId == null) {
-        out.print("{\"error\":\"missing detalle_id\"}");
-        return;
-    }
+        PreparedStatement ps = con.prepareStatement(
+            "DELETE FROM carrito_detalle WHERE id=?"
+        );
+        ps.setInt(1, Integer.parseInt(detalleId));
+        int r = ps.executeUpdate();
+        out.print("{\"success\":" + (r > 0) + "}");
 
-    String sql = "DELETE FROM carrito_detalle WHERE id=?";
-    PreparedStatement ps = con.prepareStatement(sql);
-    ps.setInt(1, Integer.parseInt(detalleId));
-
-    int r = ps.executeUpdate();
-    out.print("{\"success\":" + (r > 0) + "}");
-}
-
-    else {
-
+    } else {
         out.print("{\"error\":\"invalid method\"}");
-
     }
 
-} catch(Exception e) {
-
-    out.print("{\"error\":\""+e.getMessage().replace("\"","")+"\"}");
-
+} catch (Exception e) {
+    out.print("{\"error\":\"" + e.getMessage().replace("\"", "") + "\"}");
 }
 %>

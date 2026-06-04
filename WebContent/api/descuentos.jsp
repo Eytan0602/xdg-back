@@ -36,13 +36,14 @@ try {
 
         String juegoIdParam = request.getParameter("juego_id");
 
-        StringBuilder sql = new StringBuilder(
-            "SELECT d.*, j.titulo, j.precio AS precio_actual " +
-            "FROM descuentos d " +
-            "JOIN juegos j ON j.id = d.juego_id " +
-            "WHERE d.activo = TRUE "
-        );
-
+       StringBuilder sql = new StringBuilder(
+    "SELECT d.*, j.titulo, j.imagen_url, j.descripcion, " +
+    "ROUND(d.precio_original * (1 - d.porcentaje / 100.0), 2) AS precio_con_descuento, " +
+    "ROUND(d.precio_original * (1 - d.porcentaje / 100.0), 2) AS precio_actual " +
+    "FROM descuentos d " +
+    "JOIN juegos j ON j.id = d.juego_id " +
+    "WHERE d.activo = TRUE "
+);
         if(juegoIdParam != null && !juegoIdParam.trim().isEmpty()) {
             sql.append("AND d.juego_id = ? ");
         }
@@ -66,16 +67,19 @@ try {
         while(rs.next()) {
             if(!first) json.append(",");
             json.append("{")
-                .append("\"id\":").append(rs.getInt("id")).append(",")
-                .append("\"juego_id\":").append(rs.getInt("juego_id")).append(",")
-                .append("\"titulo\":\"").append(rs.getString("titulo")).append("\",")
-                .append("\"porcentaje\":").append(rs.getDouble("porcentaje")).append(",")
-                .append("\"precio_original\":").append(rs.getDouble("precio_original")).append(",")
-                .append("\"precio_actual\":").append(rs.getDouble("precio_actual")).append(",")
-                .append("\"fecha_inicio\":\"").append(rs.getString("fecha_inicio")).append("\",")
-                .append("\"fecha_fin\":\"").append(rs.getString("fecha_fin")).append("\",")
-                .append("\"activo\":").append(rs.getBoolean("activo"))
-                .append("}");
+    .append("\"id\":").append(rs.getInt("id")).append(",")
+    .append("\"juego_id\":").append(rs.getInt("juego_id")).append(",")
+    .append("\"titulo\":\"").append(rs.getString("titulo")).append("\",")
+    .append("\"descripcion\":\"").append(rs.getString("descripcion") != null ? rs.getString("descripcion").replace("\"","'") : "").append("\",")  // ← nuevo
+    .append("\"imagen_url\":\"").append(rs.getString("imagen_url") != null ? rs.getString("imagen_url") : "").append("\",")                       // ← nuevo
+    .append("\"porcentaje\":").append(rs.getDouble("porcentaje")).append(",")
+    .append("\"precio_original\":").append(rs.getDouble("precio_original")).append(",")
+    .append("\"precio_actual\":").append(rs.getDouble("precio_actual")).append(",")
+    .append("\"precio_con_descuento\":").append(rs.getDouble("precio_con_descuento")).append(",")
+    .append("\"fecha_inicio\":\"").append(rs.getString("fecha_inicio")).append("\",")
+    .append("\"fecha_fin\":\"").append(rs.getString("fecha_fin")).append("\",")
+    .append("\"activo\":").append(rs.getBoolean("activo"))
+    .append("}");
             first = false;
         }
 
@@ -130,8 +134,8 @@ try {
         precioConDescuento = Math.round(precioConDescuento * 100.0) / 100.0;
 
         String insertSql =
-            "INSERT INTO descuentos(juego_id, porcentaje, precio_original, fecha_fin) " +
-            "VALUES(?, ?, ?, ?::TIMESTAMP)";
+            "INSERT INTO descuentos(juego_id, porcentaje, precio_original, fecha_inicio, fecha_fin, activo) " +
+            "VALUES(?, ?, ?, NOW(), ?::TIMESTAMP, TRUE)";
         PreparedStatement insertPs = con.prepareStatement(insertSql);
         insertPs.setInt(1, juegoId);
         insertPs.setDouble(2, porcentaje);
@@ -149,8 +153,10 @@ try {
         out.print("\"success\":true,");
         out.print("\"precio_original\":" + precioOriginal + ",");
         out.print("\"porcentaje\":" + porcentaje + ",");
-        out.print("\"precio_con_descuento\":" + precioConDescuento + ",");
-        out.print("\"fecha_fin\":\"" + fechaFin + "\"");
+        out.print("\"precio_actual\":" + precioConDescuento + ",");
+    out.print("\"precio_con_descuento\":" + precioConDescuento + ",");
+        out.print("\"fecha_fin\":\"" + fechaFin + "\",");
+        out.print("\"activo\":true");
         out.print("}");
     }
 

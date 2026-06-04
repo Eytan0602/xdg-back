@@ -5,6 +5,7 @@ if(origin != null) {
 } else {
     response.setHeader("Access-Control-Allow-Origin", "*");
 }
+response.setHeader("Access-Control-Allow-Origin", "http://localhost:4321");
 response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
 response.setHeader("Access-Control-Allow-Headers", "Content-Type");
 response.setHeader("Access-Control-Allow-Credentials", "true");
@@ -12,6 +13,11 @@ response.setContentType("application/json;charset=UTF-8");
 
 if(request.getMethod().equals("OPTIONS")){
     response.setStatus(200);
+    return;
+}
+
+if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+    response.setStatus(HttpServletResponse.SC_OK);
     return;
 }
 %>

@@ -121,17 +121,36 @@ try {
         }
     }
 
-    // =========================
-    // LOGOUT
-    // =========================
+   
     else if("POST".equals(method) && "logout".equals(action)) {
         session.invalidate();
         out.print("{\"success\":true}");
     }
 
-    else {
-        out.print("{\"error\":\"invalid action\"}");
+   else if("GET".equals(method) && "session".equals(action)) {
+
+    String userId = (String) session.getAttribute("user_id");
+    String userName = (String) session.getAttribute("user_name");
+    String userRole = (String) session.getAttribute("user_role");
+
+    if(userId != null) {
+
+        out.print("{");
+        out.print("\"success\":true,");
+        out.print("\"id\":\"" + userId + "\",");
+        out.print("\"nombre\":\"" + userName + "\",");
+        out.print("\"role\":\"" + userRole + "\"");
+        out.print("}");
+
+    } else {
+
+        out.print("{\"success\":false}");
+
     }
+}
+else {
+    out.print("{\"error\":\"invalid action\"}");
+}
 
 } catch(Exception e){
     out.print("{\"error\":\"" + e.getMessage().replace("\"","") + "\"}");
