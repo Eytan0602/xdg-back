@@ -17,15 +17,22 @@ String body = sb.toString().trim();
 String methodOverride = request.getParameter("_method");
 if (methodOverride != null && !methodOverride.isEmpty()) method = methodOverride.toUpperCase();
 
+String seccion = request.getParameter("seccion");
+boolean esClientes = "clientes".equals(seccion);
+
 try {
 
     if (method.equals("GET")) {
+
+        String whereClause = esClientes
+            ? "WHERE u.rol_id = 3"
+            : "WHERE r.nombre IN ('ADMIN','SOPORTE')";
 
         String sql = "SELECT u.id, u.nombre, u.usuario, u.correo, u.fecha_registro, " +
                      "r.id AS rol_id, r.nombre AS rol " +
                      "FROM usuarios u " +
                      "JOIN roles r ON u.rol_id = r.id " +
-                     "WHERE r.nombre IN ('ADMIN','SOPORTE') " +
+                     whereClause + " " +
                      "ORDER BY u.fecha_registro DESC";
 
         PreparedStatement ps = con.prepareStatement(sql);
@@ -56,25 +63,30 @@ try {
         String usuario    = jsonGet(body, "usuario");
         String correo     = jsonGet(body, "correo");
         String contrasena = jsonGet(body, "contrasena");
-        String rolIdStr   = jsonGetNum(body, "rol_id");
+        String rolIdStr   = esClientes ? "3" : jsonGetNum(body, "rol_id");
 
         if (nombre == null || usuario == null || correo == null || contrasena == null || rolIdStr == null) {
-            out.print("{\"error\":\"Faltan campos obligatorios: nombre, usuario, correo, contrasena, rol_id\"}");
+            out.print("{\"error\":\"Faltan campos obligatorios: nombre, usuario, correo, contrasena" + (esClientes ? "" : ", rol_id") + "\"}");
             return;
         }
 
         int rolId = Integer.parseInt(rolIdStr);
+        String rolNombre;
 
-        PreparedStatement rolCheck = con.prepareStatement("SELECT nombre FROM roles WHERE id = ?");
-        rolCheck.setInt(1, rolId);
-        ResultSet rolRs = rolCheck.executeQuery();
-        if (!rolRs.next()) { out.print("{\"error\":\"Rol no encontrado\"}"); return; }
-        String rolNombre = rolRs.getString("nombre");
-        rolRs.close(); rolCheck.close();
+        if (esClientes) {
+            rolNombre = "CLIENTE";
+        } else {
+            PreparedStatement rolCheck = con.prepareStatement("SELECT nombre FROM roles WHERE id = ?");
+            rolCheck.setInt(1, rolId);
+            ResultSet rolRs = rolCheck.executeQuery();
+            if (!rolRs.next()) { out.print("{\"error\":\"Rol no encontrado\"}"); return; }
+            rolNombre = rolRs.getString("nombre");
+            rolRs.close(); rolCheck.close();
 
-        if (!rolNombre.equals("ADMIN") && !rolNombre.equals("SOPORTE")) {
-            out.print("{\"error\":\"Solo se permiten usuarios con rol ADMIN o SOPORTE\"}");
-            return;
+            if (!rolNombre.equals("ADMIN") && !rolNombre.equals("SOPORTE")) {
+                out.print("{\"error\":\"Solo se permiten usuarios con rol ADMIN o SOPORTE\"}");
+                return;
+            }
         }
 
         PreparedStatement ps = con.prepareStatement(
@@ -106,25 +118,27 @@ try {
         String usuario    = jsonGet(body, "usuario");
         String correo     = jsonGet(body, "correo");
         String contrasena = jsonGet(body, "contrasena");
-        String rolIdStr   = jsonGetNum(body, "rol_id");
+        String rolIdStr   = esClientes ? "3" : jsonGetNum(body, "rol_id");
 
         if (userId == null || nombre == null || usuario == null || correo == null || rolIdStr == null) {
-            out.print("{\"error\":\"Faltan campos: id, nombre, usuario, correo, rol_id\"}");
+            out.print("{\"error\":\"Faltan campos: id, nombre, usuario, correo" + (esClientes ? "" : ", rol_id") + "\"}");
             return;
         }
 
         int rolId = Integer.parseInt(rolIdStr);
 
-        PreparedStatement rolCheck = con.prepareStatement("SELECT nombre FROM roles WHERE id = ?");
-        rolCheck.setInt(1, rolId);
-        ResultSet rolRs = rolCheck.executeQuery();
-        if (!rolRs.next()) { out.print("{\"error\":\"Rol no encontrado\"}"); return; }
-        String rolNombre = rolRs.getString("nombre");
-        rolRs.close(); rolCheck.close();
+        if (!esClientes) {
+            PreparedStatement rolCheck = con.prepareStatement("SELECT nombre FROM roles WHERE id = ?");
+            rolCheck.setInt(1, rolId);
+            ResultSet rolRs = rolCheck.executeQuery();
+            if (!rolRs.next()) { out.print("{\"error\":\"Rol no encontrado\"}"); return; }
+            String rolNombre = rolRs.getString("nombre");
+            rolRs.close(); rolCheck.close();
 
-        if (!rolNombre.equals("ADMIN") && !rolNombre.equals("SOPORTE")) {
-            out.print("{\"error\":\"Solo se permiten usuarios con rol ADMIN o SOPORTE\"}");
-            return;
+            if (!rolNombre.equals("ADMIN") && !rolNombre.equals("SOPORTE")) {
+                out.print("{\"error\":\"Solo se permiten usuarios con rol ADMIN o SOPORTE\"}");
+                return;
+            }
         }
 
         boolean cambiaPass = contrasena != null && !contrasena.isEmpty();
@@ -158,9 +172,11 @@ try {
             return;
         }
 
-        PreparedStatement checkPs = con.prepareStatement(
-            "SELECT u.id FROM usuarios u JOIN roles r ON u.rol_id = r.id " +
-            "WHERE u.id = ? AND r.nombre IN ('ADMIN','SOPORTE')");
+        String checkSql = esClientes
+            ? "SELECT u.id FROM usuarios u WHERE u.id = ? AND u.rol_id = 3"
+            : "SELECT u.id FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.id = ? AND r.nombre IN ('ADMIN','SOPORTE')";
+
+        PreparedStatement checkPs = con.prepareStatement(checkSql);
         checkPs.setString(1, userId);
         ResultSet checkRs = checkPs.executeQuery();
         if (!checkRs.next()) {
