@@ -43,18 +43,12 @@ try {
                 clientesUnicos = totalRs.getInt("clientes_unicos");
             }
 
-            String topSql =
-                "SELECT j.titulo, SUM(vd.cantidad) AS unidades " +
-                "FROM venta_detalle vd " +
-                "JOIN juegos j ON j.id = vd.juego_id " +
-                "GROUP BY j.titulo " +
-                "ORDER BY unidades DESC LIMIT 1";
+            String topSql = "SELECT COUNT(*) AS unidades FROM juegos";
 
             ResultSet topRs = con.prepareStatement(topSql).executeQuery();
-            String juegoTop = "N/A";
+            String juegoTop = "Total Juegos";
             int unidadesTop = 0;
             if(topRs.next()) {
-                juegoTop    = topRs.getString("titulo");
                 unidadesTop = topRs.getInt("unidades");
             }
 
