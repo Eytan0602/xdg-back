@@ -1,4 +1,4 @@
-﻿<%@ page import="java.sql.*" %>
+<%@ page import="java.sql.*" %>
 <%@ page import="java.util.*" %>
 <%@ page contentType="application/json;charset=UTF-8" %>
 
@@ -13,9 +13,7 @@ String metodo = request.getMethod();
 
 try {
 
-    // =========================================
-    // GET -> LISTAR COMENTARIOS
-    // =========================================
+
     if("GET".equalsIgnoreCase(metodo)) {
 
         String gameParam = request.getParameter("juego_id");
@@ -50,11 +48,15 @@ try {
             rs.getString("comentario")
             .replace("\"","'");
 
+            int estrellas = 5;
+            try { estrellas = rs.getInt("estrellas"); } catch(Exception ignored) {}
+
             json.append("{")
                 .append("\"id\":\"").append(rs.getString("id")).append("\",")
                 .append("\"usuario\":\"").append(rs.getString("usuario")).append("\",")
                 .append("\"comentario\":\"").append(comentario).append("\",")
                 .append("\"likes\":").append(rs.getInt("likes")).append(",")
+                .append("\"estrellas\":").append(estrellas).append(",")
                 .append("\"fecha\":\"").append(rs.getString("fecha")).append("\"")
                 .append("}");
 
@@ -66,14 +68,13 @@ try {
         out.print(json.toString());
     }
 
-    // =========================================
-    // POST -> CREAR COMENTARIO
-    // =========================================
+  
     else if("POST".equalsIgnoreCase(metodo)) {
 
         String texto = param(request, jsonBody, "comentario");
         String user = param(request, jsonBody, "user_id");
         String gameParam = param(request, jsonBody, "juego_id");
+        String estrellasParam = param(request, jsonBody, "estrellas");
 
         if(texto == null || user == null || gameParam == null) {
             out.print("{\"error\":\"missing fields\"}");
@@ -81,16 +82,22 @@ try {
         }
 
         int juego_id = Integer.parseInt(gameParam);
+        int estrellas = (estrellasParam != null) ? Integer.parseInt(estrellasParam) : 5;
+
+        try {
+            con.createStatement().execute("ALTER TABLE comentarios ADD COLUMN IF NOT EXISTS estrellas INT DEFAULT 5");
+        } catch(Exception ignored) {}
 
         String sql =
-        "INSERT INTO comentarios(usuario_id,juego_id,comentario) " +
-        "VALUES(?,?,?)";
+        "INSERT INTO comentarios(usuario_id,juego_id,comentario,estrellas) " +
+        "VALUES(?,?,?,?)";
 
         PreparedStatement ps = con.prepareStatement(sql);
 
         ps.setString(1,user);
         ps.setInt(2,juego_id);
         ps.setString(3,texto);
+        ps.setInt(4,estrellas);
 
         ps.executeUpdate();
 

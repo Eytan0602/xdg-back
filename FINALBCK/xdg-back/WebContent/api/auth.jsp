@@ -1,4 +1,4 @@
-﻿<%@ page import="java.sql.*" %>
+<%@ page import="java.sql.*" %>
 <%@ page import="org.mindrot.jbcrypt.BCrypt" %>
 <%@ page import="java.util.*" %>
 <%@ page contentType="application/json;charset=UTF-8" pageEncoding="UTF-8" %>
@@ -70,7 +70,7 @@ try {
         String sqlAdmin = "SELECT u.*, r.nombre AS rol_nombre " +
                           "FROM usuarios u " +
                           "JOIN roles r ON u.rol_id = r.id " +
-                          "WHERE u.correo = ? AND r.nombre IN ('ADMIN','SOPORTE') " +
+                          "WHERE u.correo = ? AND UPPER(r.nombre) IN ('ADMIN','SOPORTE') " +
                           "AND (u.eliminado IS NULL OR u.eliminado = FALSE)";
         PreparedStatement psAdmin = con.prepareStatement(sqlAdmin);
         psAdmin.setString(1, correo);
@@ -111,7 +111,7 @@ try {
 
         String sqlUser = "SELECT u.* FROM usuarios u " +
                          "JOIN roles r ON u.rol_id = r.id " +
-                         "WHERE u.correo = ? AND r.nombre = 'CLIENTE' " +
+                         "WHERE u.correo = ? AND UPPER(r.nombre) = 'CLIENTE' " +
                          "AND (u.eliminado IS NULL OR u.eliminado = FALSE)";
         PreparedStatement psUser = con.prepareStatement(sqlUser);
         psUser.setString(1, correo);
@@ -126,7 +126,6 @@ try {
                 session.setAttribute("user_name",  nombreUsuario);
                 session.setAttribute("user_role",  "user");
 
-                // Actualizar ultimo_acceso
                 PreparedStatement psAcceso = con.prepareStatement(
                     "UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = ?");
                 psAcceso.setString(1, userId);

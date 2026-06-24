@@ -12,9 +12,7 @@ try {
 
     String metodo = request.getMethod();
 
-    // ======================================
-    // GET -> LISTAR WISHLIST
-    // ======================================
+    
     if("GET".equalsIgnoreCase(metodo)) {
 
         String user = param(request, jsonBody, "user_id");
@@ -62,9 +60,7 @@ try {
         out.print(json.toString());
     }
 
-    // ======================================
-    // POST -> AGREGAR A WISHLIST
-    // ======================================
+   
     else if("POST".equalsIgnoreCase(metodo)) {
 
         String user = param(request, jsonBody, "user_id");

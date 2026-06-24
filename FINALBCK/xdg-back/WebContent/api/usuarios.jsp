@@ -143,6 +143,25 @@ ResultSet rs = ps.executeQuery();
             out.print("{\"error\":\"Solo se permiten usuarios con rol ADMIN o SOPORTE\"}");
             return;
         }
+
+        String currentSubRole = (String) session.getAttribute("user_sub_role");
+        if ("SOPORTE".equals(currentSubRole)) {
+            // Verificar a quién intenta editar
+            PreparedStatement getTargetRol = con.prepareStatement(
+                "SELECT r.nombre FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.id = ?"
+            );
+            getTargetRol.setString(1, userId);
+            ResultSet rsTarget = getTargetRol.executeQuery();
+            if (rsTarget.next()) {
+                String targetRol = rsTarget.getString("nombre");
+                if ("ADMIN".equals(targetRol) || "SOPORTE".equals(targetRol)) {
+                    out.print("{\"error\":\"Un soporte no puede editar a un administrador u a otro soporte\"}");
+                    rsTarget.close(); getTargetRol.close();
+                    return;
+                }
+            }
+            rsTarget.close(); getTargetRol.close();
+        }
     }
 
     boolean cambiaPass = contrasena != null && !contrasena.isEmpty();
@@ -196,16 +215,14 @@ ResultSet rs = ps.executeQuery();
         String rolObjetivo = esClientes ? null : checkRs.getString("rol_objetivo");
         checkRs.close(); checkPs.close();
 
-        // Un soporte no puede eliminar a un administrador
         if (!esClientes) {
             String currentSubRole = (String) session.getAttribute("user_sub_role");
-            if ("SOPORTE".equals(currentSubRole) && "ADMIN".equals(rolObjetivo)) {
-                out.print("{\"error\":\"Un soporte no puede eliminar a un administrador\"}");
+            if ("SOPORTE".equals(currentSubRole) && ("ADMIN".equals(rolObjetivo) || "SOPORTE".equals(rolObjetivo))) {
+                out.print("{\"error\":\"Un soporte no puede eliminar a un administrador ni a otro soporte\"}");
                 return;
             }
         }
 
-        // Limpiar dependencias — ventas NO se borran para conservar reportes
         String[] deps = {
             "DELETE FROM carrito_detalle WHERE carrito_id IN (SELECT id FROM carritos WHERE usuario_id = ?)",
             "DELETE FROM carritos WHERE usuario_id = ?",
@@ -221,7 +238,6 @@ ResultSet rs = ps.executeQuery();
             } catch (Exception ignored) {}
         }
 
-        // Soft delete: no se borra la fila, solo se marca como eliminado
         PreparedStatement ps = con.prepareStatement(
             "UPDATE usuarios SET eliminado = TRUE WHERE id = ?"
         );

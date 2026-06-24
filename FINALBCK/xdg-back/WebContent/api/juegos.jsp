@@ -146,7 +146,7 @@ try {
     String video_url = param(request, jsonBody, "video_url");
     String fecha_lanzamiento = param(request, jsonBody, "fecha_lanzamiento");
     String precioS = param(request, jsonBody, "precio");
-    String categoriaId = param(request, jsonBody, "categoria_id");
+    String categoriaIds = param(request, jsonBody, "categoria_ids");
 
     if (titulo == null || precioS == null) {
       out.print("{\"error\":\"missing fields: titulo, precio\"}");
@@ -180,12 +180,17 @@ try {
     Integer newId = null;
     if (keys.next()) newId = keys.getInt(1);
 
-    if (newId != null && categoriaId != null && !categoriaId.trim().isEmpty()) {
+    if (newId != null && categoriaIds != null && !categoriaIds.trim().isEmpty() && !categoriaIds.equals("[]") && !categoriaIds.equals("null")) {
       try {
-        PreparedStatement linkPs = con.prepareStatement("INSERT INTO juego_categoria(juego_id, categoria_id) VALUES(?,?)");
-        linkPs.setInt(1, newId);
-        linkPs.setInt(2, Integer.parseInt(categoriaId));
-        linkPs.executeUpdate();
+        String clean = categoriaIds.replaceAll("[\\[\\]\"]", "");
+        String[] arr = clean.split(",");
+        for (String c : arr) {
+          if (c.trim().isEmpty() || c.trim().equals("null")) continue;
+          PreparedStatement linkPs = con.prepareStatement("INSERT INTO juego_categoria(juego_id, categoria_id) VALUES(?,?)");
+          linkPs.setInt(1, newId);
+          linkPs.setInt(2, Integer.parseInt(c.trim()));
+          linkPs.executeUpdate();
+        }
       } catch (Exception e) {}
     }
 
@@ -208,7 +213,7 @@ try {
     String video_url = param(request, jsonBody, "video_url");
     String fecha_lanzamiento = param(request, jsonBody, "fecha_lanzamiento");
     String precioS = param(request, jsonBody, "precio");
-    String categoriaId = param(request, jsonBody, "categoria_id");
+    String categoriaIds = param(request, jsonBody, "categoria_ids");
 
     StringBuilder update = new StringBuilder("UPDATE juegos SET ");
     List<Object> params = new ArrayList<Object>();
@@ -242,19 +247,24 @@ try {
     psPut.setInt(idxPut, Integer.parseInt(id));
     psPut.executeUpdate();
 
-    if (categoriaId != null) {
+    if (categoriaIds != null) {
       try {
-        PreparedStatement delCat = con.prepareStatement("DELETE FROM juego_categoria WHERE juego_id = ?");
-        delCat.setInt(1, Integer.parseInt(id));
-        delCat.executeUpdate();
+        PreparedStatement del = con.prepareStatement("DELETE FROM juego_categoria WHERE juego_id = ?");
+        del.setInt(1, Integer.parseInt(id));
+        del.executeUpdate();
 
-        if (!categoriaId.trim().isEmpty()) {
-          PreparedStatement insCat = con.prepareStatement("INSERT INTO juego_categoria(juego_id, categoria_id) VALUES(?,?)");
-          insCat.setInt(1, Integer.parseInt(id));
-          insCat.setInt(2, Integer.parseInt(categoriaId));
-          insCat.executeUpdate();
+        if (!categoriaIds.trim().isEmpty() && !categoriaIds.equals("[]") && !categoriaIds.equals("null")) {
+          String clean = categoriaIds.replaceAll("[\\[\\]\"]", "");
+          String[] arr = clean.split(",");
+          for (String c : arr) {
+            if (c.trim().isEmpty() || c.trim().equals("null")) continue;
+            PreparedStatement ins = con.prepareStatement("INSERT INTO juego_categoria(juego_id, categoria_id) VALUES(?,?)");
+            ins.setInt(1, Integer.parseInt(id));
+            ins.setInt(2, Integer.parseInt(c.trim()));
+            ins.executeUpdate();
+          }
         }
-      } catch (Exception e) {}
+      } catch(Exception e) { }
     }
 
     out.print("{\"success\":true}");
