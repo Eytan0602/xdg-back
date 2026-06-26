@@ -112,7 +112,7 @@ try {
             return;
         }
 
-        String getPriceSql = "SELECT precio FROM juegos WHERE id = ?";
+        String getPriceSql = "SELECT precio, titulo FROM juegos WHERE id = ?";
         PreparedStatement getPricePs = con.prepareStatement(getPriceSql);
         getPricePs.setInt(1, juegoId);
         ResultSet priceRs = getPricePs.executeQuery();
@@ -123,6 +123,7 @@ try {
         }
 
         double precioOriginal = priceRs.getDouble("precio");
+        String juegoTitulo = priceRs.getString("titulo");
 
         String deactivateSql =
             "UPDATE descuentos SET activo = FALSE WHERE juego_id = ? AND activo = TRUE";
@@ -148,6 +149,18 @@ try {
         updatePs.setDouble(1, precioConDescuento);
         updatePs.setInt(2, juegoId);
         updatePs.executeUpdate();
+
+        try {
+            PreparedStatement psa = con.prepareStatement("INSERT INTO admin_audit(admin_id, admin_name, accion, entidad, detalle) VALUES (?,?,?,?,?)");
+            psa.setString(1, session.getAttribute("user_id").toString());
+            psa.setString(2, (String)session.getAttribute("user_name"));
+            psa.setString(3, "OFERTA");
+            psa.setString(4, "JUEGO");
+            psa.setString(5, "Aplic\u00f3 " + porcentaje + "% de dscto al juego: " + juegoTitulo);
+            psa.executeUpdate();
+        } catch(Exception auditEx) {
+            application.log("Error inserting audit (OFERTA)", auditEx);
+        }
 
         out.print("{");
         out.print("\"success\":true,");
@@ -190,6 +203,12 @@ try {
 
         double precioOriginal = getRs.getDouble("precio_original");
 
+        PreparedStatement psTitulo = con.prepareStatement("SELECT titulo FROM juegos WHERE id = ?");
+        psTitulo.setInt(1, juegoId);
+        ResultSet rsTitulo = psTitulo.executeQuery();
+        String juegoTitulo = rsTitulo.next() ? rsTitulo.getString("titulo") : String.valueOf(juegoId);
+        rsTitulo.close(); psTitulo.close();
+
         String deactivateSql =
             "UPDATE descuentos SET activo = FALSE WHERE juego_id = ? AND activo = TRUE";
         PreparedStatement deactivatePs = con.prepareStatement(deactivateSql);
@@ -202,6 +221,18 @@ try {
         restorePs.setInt(2, juegoId);
         restorePs.executeUpdate();
 
+        try {
+            PreparedStatement psa = con.prepareStatement("INSERT INTO admin_audit(admin_id, admin_name, accion, entidad, detalle) VALUES (?,?,?,?,?)");
+            psa.setString(1, session.getAttribute("user_id").toString());
+            psa.setString(2, (String)session.getAttribute("user_name"));
+            psa.setString(3, "QUITAR OFERTA");
+            psa.setString(4, "JUEGO");
+            psa.setString(5, "Quit\u00f3 el descuento al juego: " + juegoTitulo);
+            psa.executeUpdate();
+        } catch(Exception auditEx) {
+            application.log("Error inserting audit (QUITAR OFERTA)", auditEx);
+        }
+
         out.print("{\"success\":true,\"precio_restaurado\":" + precioOriginal + "}");
     }
 
@@ -213,3 +244,4 @@ try {
     out.print("{\"error\":\"" + e.getMessage().replace("\"","") + "\"}");
 }
 %>
+<%@ include file="../includes/db_close.jsp" %>

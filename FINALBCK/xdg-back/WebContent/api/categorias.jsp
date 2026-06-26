@@ -51,6 +51,21 @@ try {
         psPost.setString(1, nombre);
         int rPost = psPost.executeUpdate();
 
+        if (rPost > 0) {
+            try {
+                Object uId = session.getAttribute("user_id");
+                if (uId != null) {
+                    PreparedStatement psa = con.prepareStatement("INSERT INTO admin_audit(admin_id, admin_name, accion, entidad, detalle) VALUES (?,?,?,?,?)");
+                    psa.setString(1, uId.toString());
+                    psa.setString(2, (String)session.getAttribute("user_name"));
+                    psa.setString(3, "CREAR");
+                    psa.setString(4, "CATEGORÍA");
+                    psa.setString(5, "Cre\u00f3 la categor\u00eda: " + nombre);
+                    psa.executeUpdate();
+                }
+            } catch(Exception e) {}
+        }
+
         out.print("{\"success\":" + (rPost > 0) + "}");
     }
 
@@ -68,6 +83,21 @@ try {
         psPut.setInt(2, Integer.parseInt(id));
         int rPut = psPut.executeUpdate();
 
+        if (rPut > 0) {
+            try {
+                Object uId = session.getAttribute("user_id");
+                if (uId != null) {
+                    PreparedStatement psa = con.prepareStatement("INSERT INTO admin_audit(admin_id, admin_name, accion, entidad, detalle) VALUES (?,?,?,?,?)");
+                    psa.setString(1, uId.toString());
+                    psa.setString(2, (String)session.getAttribute("user_name"));
+                    psa.setString(3, "EDITAR");
+                    psa.setString(4, "CATEGORÍA");
+                    psa.setString(5, "Edit\u00f3 la categor\u00eda: " + nombre);
+                    psa.executeUpdate();
+                }
+            } catch(Exception e) {}
+        }
+
         out.print("{\"updated\":" + (rPut > 0) + "}");
     }
 
@@ -79,9 +109,29 @@ try {
             return;
         }
 
+        PreparedStatement psCatName = con.prepareStatement("SELECT nombre FROM categorias WHERE id=?");
+        psCatName.setInt(1, Integer.parseInt(id));
+        ResultSet rsCatName = psCatName.executeQuery();
+        String catName = rsCatName.next() ? rsCatName.getString("nombre") : id;
+
         PreparedStatement psDel = con.prepareStatement("DELETE FROM categorias WHERE id=?");
         psDel.setInt(1, Integer.parseInt(id));
         int rDel = psDel.executeUpdate();
+
+        if (rDel > 0) {
+            try {
+                Object uId = session.getAttribute("user_id");
+                if (uId != null) {
+                    PreparedStatement psa = con.prepareStatement("INSERT INTO admin_audit(admin_id, admin_name, accion, entidad, detalle) VALUES (?,?,?,?,?)");
+                    psa.setString(1, uId.toString());
+                    psa.setString(2, (String)session.getAttribute("user_name"));
+                    psa.setString(3, "ELIMINAR");
+                    psa.setString(4, "CATEGORÍA");
+                    psa.setString(5, "Elimin\u00f3 la categor\u00eda: " + catName);
+                    psa.executeUpdate();
+                }
+            } catch(Exception e) {}
+        }
 
         out.print("{\"deleted\":" + (rDel > 0) + "}");
     }
@@ -90,3 +140,4 @@ try {
     out.print("{\"error\":\"" + e.getMessage().replace("\"", "") + "\"}");
 }
 %>
+<%@ include file="../includes/db_close.jsp" %>

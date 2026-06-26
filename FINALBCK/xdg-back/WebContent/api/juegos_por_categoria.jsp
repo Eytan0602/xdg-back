@@ -44,3 +44,4 @@ while (rs.next()) {
 json.append("]");
 out.print(json.toString());
 %>
+<%@ include file="../includes/db_close.jsp" %>

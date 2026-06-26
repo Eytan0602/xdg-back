@@ -40,12 +40,18 @@ try {
     }
     monthlyJson.append("]");
 
+    int daysParam = 7;
+    if (request.getParameter("days") != null) {
+        try { daysParam = Integer.parseInt(request.getParameter("days")); } catch (Exception e){}
+    }
+    String fmt = daysParam <= 7 ? "Dy" : "DD/MM";
+    
     String sqlDaily =
-        "SELECT TO_CHAR(v.fecha, 'Dy') as dia, " +
+        "SELECT TO_CHAR(v.fecha, '" + fmt + "') as dia, " +
         "SUM(vd.precio * vd.cantidad) as total " +
         "FROM ventas v " +
         "JOIN venta_detalle vd ON vd.venta_id = v.id " +
-        "WHERE v.fecha >= NOW() - INTERVAL '7 days' " +
+        "WHERE v.fecha >= NOW() - INTERVAL '" + daysParam + " days' " +
         "GROUP BY dia, v.fecha ORDER BY v.fecha";
 
     PreparedStatement psD = con.prepareStatement(sqlDaily);
@@ -171,3 +177,4 @@ try {
     out.print("{\"error\":\"" + e.getMessage().replace("\"","") + "\"}");
 }
 %>
+<%@ include file="../includes/db_close.jsp" %>

@@ -91,6 +91,14 @@ String sql = "SELECT u.id, u.nombre, u.usuario, u.correo, u.fecha_registro, " +
                 out.print("{\"error\":\"Solo se permiten usuarios con rol ADMIN o SOPORTE\"}");
                 return;
             }
+
+            String currentSubRole = (String) session.getAttribute("user_sub_role");
+            if ("SOPORTE".equalsIgnoreCase(currentSubRole)) {
+                if (rolNombre.equals("ADMIN") || rolNombre.equals("SOPORTE")) {
+                    out.print("{\"error\":\"Un soporte no puede agregar un admin ni soporte nuevo\"}");
+                    return;
+                }
+            }
         }
            String hashContrasena = BCrypt.hashpw(contrasena, BCrypt.gensalt());
 
@@ -105,6 +113,19 @@ ps.setInt   (5, rolId);
 ResultSet rs = ps.executeQuery();
 
         if (rs.next()) {
+            try {
+                Object uId = session.getAttribute("user_id");
+                if (uId != null) {
+                    PreparedStatement psa = con.prepareStatement("INSERT INTO admin_audit(admin_id, admin_name, accion, entidad, detalle) VALUES (?,?,?,?,?)");
+                    psa.setString(1, uId.toString());
+                    psa.setString(2, (String)session.getAttribute("user_name"));
+                    psa.setString(3, "CREAR");
+                    psa.setString(4, "USUARIO");
+                    psa.setString(5, "Cre\u00f3 el usuario: " + nombre);
+                    psa.executeUpdate();
+                }
+            } catch(Exception e) {}
+
             out.print("{\"success\":true," +
                 "\"id\":\""             + esc(rs.getString("id"))             + "\"," +
                 "\"nombre\":\""         + esc(rs.getString("nombre"))         + "\"," +
@@ -145,6 +166,12 @@ ResultSet rs = ps.executeQuery();
         }
 
         String currentSubRole = (String) session.getAttribute("user_sub_role");
+        if ("SOPORTE".equalsIgnoreCase(currentSubRole)) {
+            if (rolNombre.equals("ADMIN") || rolNombre.equals("SOPORTE")) {
+                out.print("{\"error\":\"Un soporte no puede asignar rol de admin ni soporte\"}");
+                return;
+            }
+        }
         if ("SOPORTE".equals(currentSubRole)) {
             // Verificar a quién intenta editar
             PreparedStatement getTargetRol = con.prepareStatement(
@@ -185,6 +212,22 @@ ResultSet rs = ps.executeQuery();
 
     int filas = ps.executeUpdate();
     ps.close();
+
+    if (filas > 0) {
+        try {
+            Object uId = session.getAttribute("user_id");
+            if (uId != null) {
+                PreparedStatement psa = con.prepareStatement("INSERT INTO admin_audit(admin_id, admin_name, accion, entidad, detalle) VALUES (?,?,?,?,?)");
+                psa.setString(1, uId.toString());
+                psa.setString(2, (String)session.getAttribute("user_name"));
+                psa.setString(3, "EDITAR");
+                psa.setString(4, "USUARIO");
+                psa.setString(5, "Edit\u00f3 el usuario: " + nombre);
+                psa.executeUpdate();
+            }
+        } catch(Exception e) {}
+    }
+
     out.print("{\"success\":" + (filas > 0) + ",\"filas_afectadas\":" + filas + "}");
     } else if (method.equals("DELETE")) {
 
@@ -238,12 +281,33 @@ ResultSet rs = ps.executeQuery();
             } catch (Exception ignored) {}
         }
 
+        PreparedStatement psName = con.prepareStatement("SELECT nombre FROM usuarios WHERE id = ?");
+        psName.setString(1, userId);
+        ResultSet rsName = psName.executeQuery();
+        String uNombre = rsName.next() ? rsName.getString("nombre") : userId;
+
         PreparedStatement ps = con.prepareStatement(
             "UPDATE usuarios SET eliminado = TRUE WHERE id = ?"
         );
         ps.setString(1, userId);
         int filas = ps.executeUpdate();
         ps.close();
+
+        if (filas > 0) {
+            try {
+                Object uId = session.getAttribute("user_id");
+                if (uId != null) {
+                    PreparedStatement psa = con.prepareStatement("INSERT INTO admin_audit(admin_id, admin_name, accion, entidad, detalle) VALUES (?,?,?,?,?)");
+                    psa.setString(1, uId.toString());
+                    psa.setString(2, (String)session.getAttribute("user_name"));
+                    psa.setString(3, "ELIMINAR");
+                    psa.setString(4, "USUARIO");
+                    psa.setString(5, "Elimin\u00f3 el usuario: " + uNombre);
+                    psa.executeUpdate();
+                }
+            } catch(Exception e) {}
+        }
+
         out.print("{\"success\":" + (filas > 0) + "}");
 
     } else {
@@ -297,3 +361,4 @@ private String jsonGetNum(String json, String key) {
     return json.substring(start, end);
 }
 %>
+<%@ include file="../includes/db_close.jsp" %>

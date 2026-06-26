@@ -37,3 +37,5 @@ if(id != null){
     out.print("{\"logged\":false}");
 }
 %>
+
+<%@ include file="../includes/db_close.jsp" %>

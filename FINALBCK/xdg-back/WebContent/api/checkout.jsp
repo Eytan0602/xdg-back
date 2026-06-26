@@ -130,3 +130,4 @@ if (ventaId == null) {
     out.print("{\"error\":\"" + e.toString().replace("\"","") + "\"}");
 }
 %>
+<%@ include file="../includes/db_close.jsp" %>

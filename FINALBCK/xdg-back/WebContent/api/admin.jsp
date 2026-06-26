@@ -64,11 +64,28 @@ try {
             int totalUsuarios = 0;
             if(usersRs.next()) totalUsuarios = usersRs.getInt("total");
 
+            ResultSet mesRs = con.prepareStatement(
+                "SELECT COALESCE(SUM(vd.precio * vd.cantidad), 0) AS mes_total " +
+                "FROM ventas v JOIN venta_detalle vd ON vd.venta_id = v.id " +
+                "WHERE EXTRACT(MONTH FROM v.fecha) = EXTRACT(MONTH FROM NOW()) " +
+                "AND EXTRACT(YEAR FROM v.fecha) = EXTRACT(YEAR FROM NOW())"
+            ).executeQuery();
+            double ventaMensual = 0;
+            if(mesRs.next()) ventaMensual = mesRs.getDouble("mes_total");
+
+            ResultSet jtRs = con.prepareStatement(
+                "SELECT COUNT(*) AS total FROM juegos"
+            ).executeQuery();
+            int juegosTotales = 0;
+            if(jtRs.next()) juegosTotales = jtRs.getInt("total");
+
             out.print("{");
             out.print("\"total_ganancias\":"  + totalGanancias  + ",");
             out.print("\"total_ventas\":"     + totalVentas     + ",");
             out.print("\"clientes_unicos\":"  + clientesUnicos  + ",");
             out.print("\"total_usuarios\":"   + totalUsuarios   + ",");
+            out.print("\"venta_mensual\":"    + ventaMensual    + ",");
+            out.print("\"juegos_totales\":"   + juegosTotales   + ",");
             out.print("\"juego_top\":\""      + juegoTop.replace("\"","'") + "\",");
             out.print("\"juego_top_unidades\":" + unidadesTop);
             out.print("}");
@@ -260,3 +277,5 @@ try {
     out.print("{\"error\":\"" + e.getMessage().replace("\"","") + "\"}");
 }
 %>
+
+<%@ include file="../includes/db_close.jsp" %>

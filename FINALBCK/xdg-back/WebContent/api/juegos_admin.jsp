@@ -183,6 +183,20 @@ String insertSql =
     ps.setDouble(7, precio);
 
     int affected = ps.executeUpdate();
+    if(affected > 0) {
+        try {
+            Object uId = session.getAttribute("user_id");
+            if(uId != null) {
+                PreparedStatement psa = con.prepareStatement("INSERT INTO admin_audit(admin_id, admin_name, accion, entidad, detalle) VALUES (?,?,?,?,?)");
+                psa.setString(1, uId.toString());
+                psa.setString(2, (String)session.getAttribute("user_name"));
+                psa.setString(3, "CREAR");
+                psa.setString(4, "JUEGO");
+                psa.setString(5, "Cre\u00f3 el juego: " + titulo);
+                psa.executeUpdate();
+            }
+        } catch(Exception e){}
+    }
     if(affected == 0) { out.print("{\"success\":false}"); return; }
 
     ResultSet keys = ps.getGeneratedKeys();
@@ -253,8 +267,23 @@ update.append("updated_at=CURRENT_TIMESTAMP,");
     }
     }
       ps.setInt(idx, Integer.parseInt(id));
-      ps.executeUpdate();
-    
+      int filas = ps.executeUpdate();
+      
+      if(filas > 0) {
+          try {
+              Object uId = session.getAttribute("user_id");
+              if(uId != null) {
+                  String tit = titulo != null ? titulo : id;
+                  PreparedStatement psa = con.prepareStatement("INSERT INTO admin_audit(admin_id, admin_name, accion, entidad, detalle) VALUES (?,?,?,?,?)");
+                  psa.setString(1, uId.toString());
+                  psa.setString(2, (String)session.getAttribute("user_name"));
+                  psa.setString(3, "EDITAR");
+                  psa.setString(4, "JUEGO");
+                  psa.setString(5, "Edit\u00f3 el juego: " + tit);
+                  psa.executeUpdate();
+              }
+          } catch(Exception e){}
+      }
 
     if(categoriaId != null) {
       try {
@@ -281,6 +310,11 @@ update.append("updated_at=CURRENT_TIMESTAMP,");
     if(id == null) { out.print("{\"error\":\"missing id\"}"); return; }
 
     try {
+      PreparedStatement psTitulo = con.prepareStatement("SELECT titulo FROM juegos WHERE id = ?");
+      psTitulo.setInt(1, Integer.parseInt(id));
+      ResultSet rsTitulo = psTitulo.executeQuery();
+      String tituloJuego = rsTitulo.next() ? rsTitulo.getString("titulo") : id;
+
       PreparedStatement delMap = con.prepareStatement("DELETE FROM juego_categoria WHERE juego_id = ?");
       delMap.setInt(1, Integer.parseInt(id));
       delMap.executeUpdate();
@@ -288,6 +322,21 @@ update.append("updated_at=CURRENT_TIMESTAMP,");
       PreparedStatement del = con.prepareStatement("DELETE FROM juegos WHERE id = ?");
       del.setInt(1, Integer.parseInt(id));
       int r = del.executeUpdate();
+
+      if(r > 0) {
+          try {
+              Object uId = session.getAttribute("user_id");
+              if(uId != null) {
+                  PreparedStatement psa = con.prepareStatement("INSERT INTO admin_audit(admin_id, admin_name, accion, entidad, detalle) VALUES (?,?,?,?,?)");
+                  psa.setString(1, uId.toString());
+                  psa.setString(2, (String)session.getAttribute("user_name"));
+                  psa.setString(3, "ELIMINAR");
+                  psa.setString(4, "JUEGO");
+                  psa.setString(5, "Elimin\u00f3 el juego: " + tituloJuego);
+                  psa.executeUpdate();
+              }
+          } catch(Exception e){}
+      }
 
       out.print("{\"deleted\":" + (r>0) + "}");
     } catch(Exception e) {
@@ -305,3 +354,5 @@ update.append("updated_at=CURRENT_TIMESTAMP,");
   out.print("{\"error\":\"" + e.getMessage().replace("\"","") + "\"}");
 }
 %>
+
+<%@ include file="../includes/db_close.jsp" %>

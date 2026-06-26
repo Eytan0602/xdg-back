@@ -194,6 +194,16 @@ try {
       } catch (Exception e) {}
     }
 
+    try {
+        PreparedStatement psa = con.prepareStatement("INSERT INTO admin_audit(admin_id, admin_name, accion, entidad, detalle) VALUES (?,?,?,?,?)");
+        psa.setString(1, session.getAttribute("user_id").toString());
+        psa.setString(2, (String)session.getAttribute("user_name"));
+        psa.setString(3, "CREAR");
+        psa.setString(4, "JUEGO");
+        psa.setString(5, "Agreg\u00f3 el juego: " + titulo);
+        psa.executeUpdate();
+    } catch(Exception auditEx) {}
+
     out.print("{\"success\":true");
     if (newId != null) out.print(",\"id\":" + newId);
     out.print("}");
@@ -267,6 +277,21 @@ try {
       } catch(Exception e) { }
     }
 
+    try {
+        PreparedStatement psTitulo = con.prepareStatement("SELECT titulo FROM juegos WHERE id = ?");
+        psTitulo.setInt(1, Integer.parseInt(id));
+        ResultSet rsTitulo = psTitulo.executeQuery();
+        String tituloJuego = rsTitulo.next() ? rsTitulo.getString("titulo") : id;
+        
+        PreparedStatement psa = con.prepareStatement("INSERT INTO admin_audit(admin_id, admin_name, accion, entidad, detalle) VALUES (?,?,?,?,?)");
+        psa.setString(1, session.getAttribute("user_id").toString());
+        psa.setString(2, (String)session.getAttribute("user_name"));
+        psa.setString(3, "EDITAR");
+        psa.setString(4, "JUEGO");
+        psa.setString(5, "Edit\u00f3 el juego: " + tituloJuego);
+        psa.executeUpdate();
+    } catch(Exception auditEx) {}
+
     out.print("{\"success\":true}");
     return;
   }
@@ -278,6 +303,11 @@ try {
     if (id == null) { out.print("{\"error\":\"missing id\"}"); return; }
 
     try {
+      PreparedStatement psTitulo = con.prepareStatement("SELECT titulo FROM juegos WHERE id = ?");
+      psTitulo.setInt(1, Integer.parseInt(id));
+      ResultSet rsTitulo = psTitulo.executeQuery();
+      String tituloJuego = rsTitulo.next() ? rsTitulo.getString("titulo") : id;
+
       PreparedStatement delMap = con.prepareStatement("DELETE FROM juego_categoria WHERE juego_id = ?");
       delMap.setInt(1, Integer.parseInt(id));
       delMap.executeUpdate();
@@ -285,6 +315,18 @@ try {
       PreparedStatement delJuego = con.prepareStatement("DELETE FROM juegos WHERE id = ?");
       delJuego.setInt(1, Integer.parseInt(id));
       int rDel = delJuego.executeUpdate();
+
+      if (rDel > 0) {
+          try {
+              PreparedStatement psa = con.prepareStatement("INSERT INTO admin_audit(admin_id, admin_name, accion, entidad, detalle) VALUES (?,?,?,?,?)");
+              psa.setString(1, session.getAttribute("user_id").toString());
+              psa.setString(2, (String)session.getAttribute("user_name"));
+              psa.setString(3, "ELIMINAR");
+              psa.setString(4, "JUEGO");
+              psa.setString(5, "Elimin\u00f3 el juego: " + tituloJuego);
+              psa.executeUpdate();
+          } catch(Exception auditEx) {}
+      }
 
       out.print("{\"deleted\":" + (rDel > 0) + "}");
     } catch (Exception e) {
@@ -302,3 +344,4 @@ try {
   out.print("{\"error\":\"" + e.getMessage().replace("\"", "") + "\"}");
 }
 %>
+<%@ include file="../includes/db_close.jsp" %>

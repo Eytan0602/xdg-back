@@ -275,3 +275,4 @@ try {
     out.print("{\"error\":\"" + msg + "\"}");
 }
 %>
+<%@ include file="../includes/db_close.jsp" %>
