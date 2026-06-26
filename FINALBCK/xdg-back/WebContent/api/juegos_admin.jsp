@@ -150,6 +150,10 @@ sql.append(" ORDER BY j.updated_at DESC");
 
     String titulo = param(request, jsonBody, "titulo");
     String slug = param(request, jsonBody, "slug");
+    if (slug == null || slug.trim().isEmpty()) {
+      slug = titulo.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
+      if (slug.isEmpty()) slug = "juego-" + java.util.UUID.randomUUID().toString();
+    }
     String descripcion = param(request, jsonBody, "descripcion");
     String imagen_url = param(request, jsonBody, "imagen_url");
     String video_url = param(request, jsonBody, "video_url");
@@ -169,7 +173,7 @@ String insertSql =
 "VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP)";
     PreparedStatement ps = con.prepareStatement(insertSql, Statement.RETURN_GENERATED_KEYS);
     ps.setString(1, titulo);
-    ps.setString(2, slug != null ? slug : "");
+    ps.setString(2, slug);
     ps.setString(3, descripcion != null ? descripcion : "");
     ps.setString(4, imagen_url != null ? imagen_url : "");
     ps.setString(5, video_url != null ? video_url : "");

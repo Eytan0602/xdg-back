@@ -141,6 +141,10 @@ try {
 
     String titulo = param(request, jsonBody, "titulo");
     String slug = param(request, jsonBody, "slug");
+    if (slug == null || slug.trim().isEmpty()) {
+      slug = titulo.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
+      if (slug.isEmpty()) slug = "juego-" + java.util.UUID.randomUUID().toString();
+    }
     String descripcion = param(request, jsonBody, "descripcion");
     String imagen_url = param(request, jsonBody, "imagen_url");
     String video_url = param(request, jsonBody, "video_url");
@@ -161,7 +165,7 @@ try {
 
     PreparedStatement psInsert = con.prepareStatement(insertSql, Statement.RETURN_GENERATED_KEYS);
     psInsert.setString(1, titulo);
-    psInsert.setString(2, slug != null ? slug : "");
+    psInsert.setString(2, slug);
     psInsert.setString(3, descripcion != null ? descripcion : "");
     psInsert.setString(4, imagen_url != null ? imagen_url : "");
     psInsert.setString(5, video_url != null ? video_url : "");
