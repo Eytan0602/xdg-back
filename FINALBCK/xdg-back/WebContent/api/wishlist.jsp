@@ -12,7 +12,6 @@ try {
 
     String metodo = request.getMethod();
 
-    
     if("GET".equalsIgnoreCase(metodo)) {
 
         String user = param(request, jsonBody, "user_id");
@@ -23,10 +22,10 @@ try {
         }
 
         String sql =
-        "SELECT w.id, j.id AS juego_id, j.titulo, j.precio, j.imagen_url " +
-        "FROM wishlist w " +
-        "INNER JOIN juegos j ON w.juego_id = j.id " +
-        "WHERE w.usuario_id=?";
+            "SELECT w.id, j.id AS juego_id, j.titulo, j.precio, j.imagen_url " +
+            "FROM wishlist w " +
+            "INNER JOIN juegos j ON w.juego_id = j.id " +
+            "WHERE w.usuario_id=?";
 
         PreparedStatement ps = con.prepareStatement(sql);
         ps.setString(1, user);
@@ -45,11 +44,9 @@ try {
                 .append("\"juego_id\":").append(rs.getInt("juego_id")).append(",")
                 .append("\"titulo\":\"").append(rs.getString("titulo")).append("\",")
                 .append("\"precio\":").append(rs.getDouble("precio")).append(",")
-                .append("\"imagen_url\":\"").append(
-                    rs.getString("imagen_url") != null
-                    ? rs.getString("imagen_url")
-                    : ""
-                ).append("\"")
+                .append("\"imagen_url\":\"")
+                .append(rs.getString("imagen_url") != null ? rs.getString("imagen_url") : "")
+                .append("\"")
                 .append("}");
 
             first = false;
@@ -60,7 +57,6 @@ try {
         out.print(json.toString());
     }
 
-   
     else if("POST".equalsIgnoreCase(metodo)) {
 
         String user = param(request, jsonBody, "user_id");
@@ -74,25 +70,57 @@ try {
         int juego_id = Integer.parseInt(gameParam);
 
         String sql =
-        "INSERT INTO wishlist(usuario_id,juego_id) VALUES(?,?)";
+            "INSERT INTO wishlist(usuario_id,juego_id) VALUES(?,?)";
 
         PreparedStatement ps = con.prepareStatement(sql);
 
-        ps.setString(1,user);
-        ps.setInt(2,juego_id);
+        ps.setString(1, user);
+        ps.setInt(2, juego_id);
 
         ps.executeUpdate();
 
         out.print("{\"success\":true}");
     }
 
-} catch(java.sql.SQLIntegrityConstraintViolationException e) {
+    else if("DELETE".equalsIgnoreCase(metodo)) {
+
+        String id = param(request, jsonBody, "id");
+
+        if(id == null || id.trim().isEmpty()) {
+            out.print("{\"error\":\"missing id\"}");
+            return;
+        }
+
+        String sql = "DELETE FROM wishlist WHERE id=?";
+
+        PreparedStatement ps = con.prepareStatement(sql);
+        ps.setInt(1, Integer.parseInt(id));
+
+        int rows = ps.executeUpdate();
+
+        if(rows > 0){
+            out.print("{\"success\":true}");
+        }else{
+            out.print("{\"success\":false,\"message\":\"No encontrado\"}");
+        }
+    }
+
+    else {
+        response.setStatus(405);
+        out.print("{\"error\":\"Method Not Allowed\"}");
+    }
+
+}
+catch(java.sql.SQLIntegrityConstraintViolationException e){
 
     out.print("{\"success\":false,\"message\":\"already exists\"}");
 
-} catch(Exception e){
+}
+catch(Exception e){
 
-    out.print("{\"error\":\""+e.getMessage().replace("\"", "")+"\"}");
+    out.print("{\"error\":\"" + e.getMessage().replace("\"","") + "\"}");
+
 }
 %>
+
 <%@ include file="../includes/db_close.jsp" %>
