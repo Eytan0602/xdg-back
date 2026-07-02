@@ -14,7 +14,7 @@ try {
 
     String sql =
     "SELECT v.id as venta_id, v.fecha, " +
-    "j.id as juego_id, j.titulo, j.imagen_url, vd.precio, vd.cantidad " +
+    "j.id as juego_id, j.titulo, j.imagen_url, vd.precio, vd.cantidad, j.precio as precio_original, j.fecha_lanzamiento " +
     "FROM ventas v " +
     "INNER JOIN venta_detalle vd ON vd.venta_id = v.id " +
     "INNER JOIN juegos j ON j.id = vd.juego_id " +
@@ -40,7 +40,9 @@ try {
         .append("\"titulo\":\"").append(rs.getString("titulo")).append("\",")
         .append("\"imagen_url\":\"").append(rs.getString("imagen_url") != null ? rs.getString("imagen_url").replace("\"","'") : "").append("\",")
         .append("\"precio\":").append(rs.getDouble("precio")).append(",")
-        .append("\"cantidad\":").append(rs.getInt("cantidad"))
+        .append("\"cantidad\":").append(rs.getInt("cantidad")).append(",")
+        .append("\"precio_original\":").append(rs.getDouble("precio_original")).append(",")
+        .append("\"fecha_lanzamiento\":").append(rs.getDate("fecha_lanzamiento") != null ? "\"" + rs.getDate("fecha_lanzamiento").toString() + "\"" : "null")
         .append("}");
 
         first = false;

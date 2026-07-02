@@ -29,14 +29,14 @@ try {
         String whereClause = esClientes
             ? "WHERE u.rol_id = 3 AND (u.eliminado IS NULL OR u.eliminado = FALSE)"
             : "WHERE r.nombre IN ('ADMIN','SOPORTE') AND (u.eliminado IS NULL OR u.eliminado = FALSE)";
-String sql = "SELECT u.id, u.nombre, u.usuario, u.correo, u.fecha_registro, " +
+String sql = "SELECT u.id, u.nombre, u.usuario, u.correo, u.fecha_registro, u.ultimo_acceso, " +
              "r.id AS rol_id, r.nombre AS rol, " +
              "COUNT(DISTINCT v.id) AS total_compras " +
              "FROM usuarios u " +
              "JOIN roles r ON u.rol_id = r.id " +
              "LEFT JOIN ventas v ON v.usuario_id = u.id " +
              whereClause + " " +
-             "GROUP BY u.id, u.nombre, u.usuario, u.correo, u.fecha_registro, r.id, r.nombre " +
+             "GROUP BY u.id, u.nombre, u.usuario, u.correo, u.fecha_registro, u.ultimo_acceso, r.id, r.nombre " +
              "ORDER BY u.fecha_registro DESC";
 
         PreparedStatement ps = con.prepareStatement(sql);
@@ -53,6 +53,7 @@ String sql = "SELECT u.id, u.nombre, u.usuario, u.correo, u.fecha_registro, " +
     .append("\"usuario\":\"")       .append(esc(rs.getString("usuario")))        .append("\",")
     .append("\"correo\":\"")        .append(esc(rs.getString("correo")))         .append("\",")
     .append("\"fecha_registro\":\"").append(esc(rs.getString("fecha_registro"))).append("\",")
+    .append("\"ultimo_acceso\":\"").append(esc(rs.getString("ultimo_acceso"))).append("\",")
     .append("\"rol_id\":")          .append(rs.getInt("rol_id"))                 .append(",")
     .append("\"rol\":\"")           .append(esc(rs.getString("rol")))            .append("\",")
     .append("\"total_compras\":")   .append(rs.getInt("total_compras"))          

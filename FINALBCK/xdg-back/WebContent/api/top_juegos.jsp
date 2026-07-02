@@ -41,6 +41,11 @@ if(!"admin".equals(role)) {
 }
 
 try {
+    String subRole = (String) session.getAttribute("sub_role");
+    if ("SOPORTE".equalsIgnoreCase(subRole)) {
+        out.print("{\"error\":\"unauthorized\"}");
+        return;
+    }
     String sql = "SELECT j.id, j.titulo, j.imagen_url, " +
                  "SUM(vd.cantidad) AS total_vendido, " +
                  "SUM(vd.cantidad * vd.precio) AS ingresos_totales " +

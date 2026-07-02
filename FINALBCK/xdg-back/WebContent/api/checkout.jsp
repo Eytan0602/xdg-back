@@ -70,6 +70,27 @@ try {
         return;
     }
 
+    // =========================
+    // 1.5 VALIDAR QUE NO POSEA EL JUEGO
+    // =========================
+    PreparedStatement psCheck = con.prepareStatement(
+        "SELECT j.titulo FROM venta_detalle vd " +
+        "JOIN ventas v ON vd.venta_id = v.id " +
+        "JOIN juegos j ON vd.juego_id = j.id " +
+        "WHERE v.usuario_id = ? AND vd.juego_id = CAST(? AS INTEGER) " +
+        "LIMIT 1"
+    );
+
+    for (Item it : itemList) {
+        psCheck.setString(1, usuario_id);
+        psCheck.setString(2, it.juegoId);
+        ResultSet rsCheck = psCheck.executeQuery();
+        if (rsCheck.next()) {
+            out.print("{\"success\":false,\"message\":\"Ya posees el juego '" + rsCheck.getString("titulo").replace("\"", "'") + "' en tu biblioteca.\"}");
+            return;
+        }
+    }
+
    // =========================
 // 2. CREAR VENTA
 // =========================

@@ -50,13 +50,18 @@ try {
 
         if(!esAdmin) {
             sql.append("AND d.fecha_fin > NOW() ");
+            sql.append("AND (d.usuario_id IS NULL OR d.usuario_id = ?) ");
         }
 
         sql.append("ORDER BY d.fecha_fin ASC");
 
         PreparedStatement ps = con.prepareStatement(sql.toString());
+        int paramIdx = 1;
         if(juegoIdParam != null && !juegoIdParam.trim().isEmpty()) {
-            ps.setInt(1, Integer.parseInt(juegoIdParam));
+            ps.setInt(paramIdx++, Integer.parseInt(juegoIdParam));
+        }
+        if(!esAdmin) {
+            ps.setString(paramIdx++, (String) session.getAttribute("user_id"));
         }
 
         ResultSet rs = ps.executeQuery();
@@ -98,6 +103,8 @@ try {
         String juegoIdParam  = param(request, jsonBody, "juego_id");
         String porcentajeParam = param(request, jsonBody, "porcentaje");
         String fechaFin      = param(request, jsonBody, "fecha_fin");
+        String usuarioIdParam = param(request, jsonBody, "usuario_id");
+        boolean isPersonal = usuarioIdParam != null && !usuarioIdParam.trim().isEmpty();
 
         if(juegoIdParam == null || porcentajeParam == null || fechaFin == null) {
             out.print("{\"error\":\"missing fields: juego_id, porcentaje, fecha_fin\"}");
@@ -125,38 +132,43 @@ try {
         double precioOriginal = priceRs.getDouble("precio");
         String juegoTitulo = priceRs.getString("titulo");
 
-        String deactivateSql =
-            "UPDATE descuentos SET activo = FALSE WHERE juego_id = ? AND activo = TRUE";
+        String deactivateSql = isPersonal
+            ? "UPDATE descuentos SET activo = FALSE WHERE juego_id = ? AND activo = TRUE AND usuario_id = ?"
+            : "UPDATE descuentos SET activo = FALSE WHERE juego_id = ? AND activo = TRUE AND usuario_id IS NULL";
         PreparedStatement deactivatePs = con.prepareStatement(deactivateSql);
         deactivatePs.setInt(1, juegoId);
+        if (isPersonal) deactivatePs.setString(2, usuarioIdParam);
         deactivatePs.executeUpdate();
 
         double precioConDescuento = precioOriginal * (1 - porcentaje / 100.0);
         precioConDescuento = Math.round(precioConDescuento * 100.0) / 100.0;
 
-        String insertSql =
-            "INSERT INTO descuentos(juego_id, porcentaje, precio_original, fecha_inicio, fecha_fin, activo) " +
-            "VALUES(?, ?, ?, NOW(), ?::TIMESTAMP, TRUE)";
+        String insertSql = isPersonal
+            ? "INSERT INTO descuentos(juego_id, porcentaje, precio_original, fecha_inicio, fecha_fin, activo, usuario_id) VALUES(?, ?, ?, NOW(), ?::TIMESTAMP, TRUE, ?)"
+            : "INSERT INTO descuentos(juego_id, porcentaje, precio_original, fecha_inicio, fecha_fin, activo) VALUES(?, ?, ?, NOW(), ?::TIMESTAMP, TRUE)";
         PreparedStatement insertPs = con.prepareStatement(insertSql);
         insertPs.setInt(1, juegoId);
         insertPs.setDouble(2, porcentaje);
         insertPs.setDouble(3, precioOriginal);
         insertPs.setString(4, fechaFin);
+        if (isPersonal) insertPs.setString(5, usuarioIdParam);
         insertPs.executeUpdate();
 
-        String updatePriceSql = "UPDATE juegos SET precio = ? WHERE id = ?";
-        PreparedStatement updatePs = con.prepareStatement(updatePriceSql);
-        updatePs.setDouble(1, precioConDescuento);
-        updatePs.setInt(2, juegoId);
-        updatePs.executeUpdate();
+        if (!isPersonal) {
+            String updatePriceSql = "UPDATE juegos SET precio = ? WHERE id = ?";
+            PreparedStatement updatePs = con.prepareStatement(updatePriceSql);
+            updatePs.setDouble(1, precioConDescuento);
+            updatePs.setInt(2, juegoId);
+            updatePs.executeUpdate();
+        }
 
         try {
             PreparedStatement psa = con.prepareStatement("INSERT INTO admin_audit(admin_id, admin_name, accion, entidad, detalle) VALUES (?,?,?,?,?)");
             psa.setString(1, session.getAttribute("user_id").toString());
             psa.setString(2, (String)session.getAttribute("user_name"));
             psa.setString(3, "OFERTA");
-            psa.setString(4, "JUEGO");
-            psa.setString(5, "Aplic\u00f3 " + porcentaje + "% de dscto al juego: " + juegoTitulo);
+            psa.setString(4, isPersonal ? "USUARIO" : "JUEGO");
+            psa.setString(5, isPersonal ? "Aplic\u00f3 " + porcentaje + "% de dscto personal al juego: " + juegoTitulo : "Aplic\u00f3 " + porcentaje + "% de dscto al juego: " + juegoTitulo);
             psa.executeUpdate();
         } catch(Exception auditEx) {
             application.log("Error inserting audit (OFERTA)", auditEx);

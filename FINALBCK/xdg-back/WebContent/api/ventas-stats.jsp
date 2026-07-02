@@ -7,6 +7,11 @@
 
 <%
 try {
+    String subRole = (String) session.getAttribute("sub_role");
+    if ("SOPORTE".equalsIgnoreCase(subRole)) {
+        out.print("{\"error\":\"unauthorized\"}");
+        return;
+    }
     String sqlMonthly =
         "SELECT TO_CHAR(v.fecha, 'Mon') as mes, " +
         "EXTRACT(MONTH FROM v.fecha) as num_mes, " +

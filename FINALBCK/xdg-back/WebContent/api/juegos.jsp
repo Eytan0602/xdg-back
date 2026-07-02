@@ -56,10 +56,13 @@ try {
         "ON d.juego_id = j.id " +
         "AND d.activo = TRUE " +
         "AND d.fecha_fin > NOW() " +
-        "WHERE j.id = ?";
+        "AND (d.usuario_id IS NULL OR d.usuario_id = ?) " +
+        "WHERE j.id = ? " +
+        "ORDER BY d.porcentaje DESC LIMIT 1";
 
       PreparedStatement psGet = con.prepareStatement(sql);
-      psGet.setInt(1, Integer.parseInt(id));
+      psGet.setString(1, (String) session.getAttribute("user_id"));
+      psGet.setInt(2, Integer.parseInt(id));
       ResultSet rsGet = psGet.executeQuery();
 
       if (rsGet.next()) {
@@ -82,8 +85,16 @@ try {
       return;
     }
 
+    String userId = (String) session.getAttribute("user_id");
     StringBuilder sqlList = new StringBuilder();
-    sqlList.append("SELECT DISTINCT j.* FROM juegos j WHERE 1=1 ");
+    sqlList.append("SELECT DISTINCT j.* ");
+    if (userId != null) {
+      sqlList.append(", (SELECT ROUND(d.precio_original * (1 - d.porcentaje / 100.0), 2) ")
+             .append("FROM descuentos d WHERE d.juego_id = j.id AND d.activo = TRUE ")
+             .append("AND d.fecha_fin > NOW() AND d.usuario_id = ? ")
+             .append("ORDER BY d.porcentaje DESC LIMIT 1) AS precio_personal ");
+    }
+    sqlList.append("FROM juegos j WHERE 1=1 ");
 
     if (categoriaId != null && !categoriaId.trim().isEmpty()) {
       sqlList.append(" AND EXISTS (")
@@ -100,6 +111,10 @@ try {
 
     PreparedStatement psList = con.prepareStatement(sqlList.toString());
     int idx = 1;
+
+    if (userId != null) {
+      psList.setString(idx++, userId);
+    }
 
     if (categoriaId != null && !categoriaId.trim().isEmpty()) {
       psList.setInt(idx++, Integer.parseInt(categoriaId));
@@ -125,8 +140,14 @@ try {
             rsList.getDate("fecha_lanzamiento") != null
               ? "\"" + rsList.getDate("fecha_lanzamiento").toString() + "\""
               : "null"
-        ).append(",")
-        .append("\"precio\":").append(rsList.getDouble("precio"))
+        ).append(",");
+
+        double precio = rsList.getDouble("precio");
+        if (userId != null && rsList.getObject("precio_personal") != null) {
+            precio = rsList.getDouble("precio_personal");
+        }
+
+        json.append("\"precio\":").append(precio)
         .append("}");
       first = false;
     }

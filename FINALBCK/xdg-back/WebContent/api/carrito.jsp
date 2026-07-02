@@ -1,4 +1,4 @@
-﻿﻿<%@ page import="java.sql.*" %>
+<%@ page import="java.sql.*" %>
 <%@ page contentType="application/json;charset=UTF-8" %>
 <%
 response.setHeader("Access-Control-Allow-Origin", "http://localhost:4321");
@@ -65,9 +65,12 @@ try {
         PreparedStatement descPs = con.prepareStatement(
             "SELECT ROUND(precio_original * (1 - porcentaje / 100.0),2) precio_final " +
             "FROM descuentos " +
-            "WHERE juego_id=? AND activo=TRUE AND fecha_fin > NOW()"
+            "WHERE juego_id=? AND activo=TRUE AND fecha_fin > NOW() " +
+            "AND (usuario_id IS NULL OR usuario_id = ?) " +
+            "ORDER BY porcentaje DESC LIMIT 1"
         );
         descPs.setInt(1, juego_id);
+        descPs.setString(2, user);
         ResultSet descRs = descPs.executeQuery();
 
         if (descRs.next()) {
