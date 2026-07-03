@@ -147,38 +147,52 @@ ResultSet rs = ps.executeQuery();
     String contrasena = jsonGet(body, "contrasena");
     String rolIdStr   = esClientes ? "3" : jsonGetNum(body, "rol_id");
 
-    if (userId == null || nombre == null || usuario == null || correo == null || rolIdStr == null) {
-        out.print("{\"error\":\"Faltan campos: id, nombre, usuario, correo\"}");
+    String sessionUserId = (String) session.getAttribute("user_id");
+    boolean isSelfEdit = (sessionUserId != null && sessionUserId.equals(userId));
+
+    if (userId == null || nombre == null || usuario == null || correo == null) {
+        out.print("{\"error\":\"Faltan campos obligatorios\"}");
         return;
     }
-
-    int rolId = Integer.parseInt(rolIdStr);
-
-    if (!esClientes) {
-        PreparedStatement rolCheck = con.prepareStatement("SELECT nombre FROM roles WHERE id = ?");
-        rolCheck.setInt(1, rolId);
-        ResultSet rolRs = rolCheck.executeQuery();
-        if (!rolRs.next()) { out.print("{\"error\":\"Rol no encontrado\"}"); return; }
-        String rolNombre = rolRs.getString("nombre");
-        rolRs.close(); rolCheck.close();
-        if (!rolNombre.equals("ADMIN") && !rolNombre.equals("SOPORTE")) {
-            out.print("{\"error\":\"Solo se permiten usuarios con rol ADMIN o SOPORTE\"}");
-            return;
-        }
-
-        String currentSubRole = (String) session.getAttribute("user_sub_role");
-        if ("SOPORTE".equalsIgnoreCase(currentSubRole)) {
-            if (rolNombre.equals("ADMIN") || rolNombre.equals("SOPORTE")) {
-                out.print("{\"error\":\"Un soporte no puede asignar rol de admin ni soporte\"}");
+    
+    if (!isSelfEdit && rolIdStr == null) {
+        out.print("{\"error\":\"Falta el rol_id\"}");
+        return;
+    }
+    int rolId = -1;
+    if (rolIdStr != null) {
+        rolId = Integer.parseInt(rolIdStr);
+        if (!esClientes) {
+            PreparedStatement rolCheck = con.prepareStatement("SELECT nombre FROM roles WHERE id = ?");
+            rolCheck.setInt(1, rolId);
+            ResultSet rolRs = rolCheck.executeQuery();
+            if (!rolRs.next()) { out.print("{\"error\":\"Rol no encontrado\"}"); return; }
+            String rolNombre = rolRs.getString("nombre");
+            rolRs.close(); rolCheck.close();
+            
+            if (!rolNombre.equals("ADMIN") && !rolNombre.equals("SOPORTE")) {
+                out.print("{\"error\":\"Solo se permiten usuarios con rol ADMIN o SOPORTE\"}");
                 return;
             }
+
+            String currentSubRole = (String) session.getAttribute("user_sub_role");
+            if ("SOPORTE".equalsIgnoreCase(currentSubRole)) {
+                if (rolNombre.equals("ADMIN") || rolNombre.equals("SOPORTE")) {
+                    out.print("{\"error\":\"Un soporte no puede asignar rol de admin ni soporte\"}");
+                    return;
+                }
+            }
         }
+    }
+
+    if (!esClientes && !isSelfEdit) {
+        String currentSubRole = (String) session.getAttribute("user_sub_role");
         if ("SOPORTE".equals(currentSubRole)) {
             // Verificar a quién intenta editar
             PreparedStatement getTargetRol = con.prepareStatement(
                 "SELECT r.nombre FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.id = ?"
             );
-            getTargetRol.setString(1, userId);
+            getTargetRol.setObject(1, UUID.fromString(userId));
             ResultSet rsTarget = getTargetRol.executeQuery();
             if (rsTarget.next()) {
                 String targetRol = rsTarget.getString("nombre");
@@ -192,24 +206,31 @@ ResultSet rs = ps.executeQuery();
         }
     }
 
-    boolean cambiaPass = contrasena != null && !contrasena.isEmpty();
-    String updateSql = cambiaPass
-        ? "UPDATE usuarios SET nombre=?, usuario=?, correo=?, contrasena=?, rol_id=? WHERE id=?"
-        : "UPDATE usuarios SET nombre=?, usuario=?, correo=?, rol_id=? WHERE id=?";
+    String hashContrasena = (contrasena != null && !contrasena.isEmpty()) ? BCrypt.hashpw(contrasena, BCrypt.gensalt()) : null;
 
-    PreparedStatement ps = con.prepareStatement(updateSql);
+    StringBuilder q = new StringBuilder("UPDATE usuarios SET nombre=?, usuario=?, correo=?");
+    int paramIdx = 4;
+    
+    if (hashContrasena != null) {
+        q.append(", contrasena=?");
+    }
+    if (rolIdStr != null && !isSelfEdit) {
+        q.append(", rol_id=?");
+    }
+    q.append(" WHERE id=?");
+
+    PreparedStatement ps = con.prepareStatement(q.toString());
     ps.setString(1, nombre);
     ps.setString(2, usuario);
     ps.setString(3, correo);
-    if (cambiaPass) {
-        String hashNuevo = BCrypt.hashpw(contrasena, BCrypt.gensalt()); 
-        ps.setString(4, hashNuevo);
-        ps.setInt   (5, rolId);
-        ps.setString(6, userId);
-    } else {
-        ps.setInt   (4, rolId);
-        ps.setString(5, userId);
+    
+    if (hashContrasena != null) {
+        ps.setString(paramIdx++, hashContrasena);
     }
+    if (rolIdStr != null && !isSelfEdit) {
+        ps.setInt(paramIdx++, Integer.parseInt(rolIdStr));
+    }
+    ps.setString(paramIdx, userId);
 
     int filas = ps.executeUpdate();
     ps.close();
