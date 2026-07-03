@@ -288,6 +288,16 @@ ResultSet rs = ps.executeQuery();
             }
         }
 
+        // Validación: No permitir eliminar si el usuario tiene compras
+        String checkVentasSql = "SELECT COUNT(*) AS total FROM ventas WHERE usuario_id = ?";
+        PreparedStatement psVentas = con.prepareStatement(checkVentasSql);
+        psVentas.setString(1, userId);
+        ResultSet rsVentas = psVentas.executeQuery();
+        if (rsVentas.next() && rsVentas.getInt("total") > 0) {
+            out.print("{\"error\":\"No se puede eliminar al usuario porque tiene compras registradas.\"}");
+            return;
+        }
+
         String[] deps = {
             "DELETE FROM carrito_detalle WHERE carrito_id IN (SELECT id FROM carritos WHERE usuario_id = ?)",
             "DELETE FROM carritos WHERE usuario_id = ?",
