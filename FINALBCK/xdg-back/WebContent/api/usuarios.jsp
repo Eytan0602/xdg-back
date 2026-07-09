@@ -4,7 +4,12 @@
 <%@ include file="../includes/db.jsp" %>
 <%@ page import="org.mindrot.jbcrypt.BCrypt" %>
 
-<%
+String __role = (String) session.getAttribute("user_role");
+if (!"admin".equals(__role)) {
+    response.setStatus(401);
+    out.print("{\"error\":\"No autorizado\"}");
+    return;
+}
 
 String method = request.getMethod().toUpperCase();
 

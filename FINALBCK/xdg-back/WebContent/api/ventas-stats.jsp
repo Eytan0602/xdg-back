@@ -52,12 +52,12 @@ try {
     String fmt = daysParam <= 7 ? "Dy" : "DD/MM";
     
     String sqlDaily =
-        "SELECT TO_CHAR(v.fecha, '" + fmt + "') as dia, " +
-        "SUM(vd.precio * vd.cantidad) as total " +
-        "FROM ventas v " +
-        "JOIN venta_detalle vd ON vd.venta_id = v.id " +
-        "WHERE v.fecha >= NOW() - INTERVAL '" + daysParam + " days' " +
-        "GROUP BY dia, v.fecha ORDER BY v.fecha";
+    "SELECT TO_CHAR(v.fecha::date, '" + fmt + "') as dia, " +
+    "SUM(vd.precio * vd.cantidad) as total " +
+    "FROM ventas v " +
+    "JOIN venta_detalle vd ON vd.venta_id = v.id " +
+    "WHERE v.fecha >= NOW() - INTERVAL '" + daysParam + " days' " +
+    "GROUP BY dia, v.fecha::date ORDER BY v.fecha::date";
 
     PreparedStatement psD = con.prepareStatement(sqlDaily);
     ResultSet rsD = psD.executeQuery();

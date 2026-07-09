@@ -26,6 +26,11 @@ try {
             out.print("{\"error\":\"missing fields\"}");
             return;
         }
+        
+        if(!correo.matches("^[a-zA-Z0-9](?:[a-zA-Z0-9._-]{3,}[a-zA-Z0-9])?@(gmail|hotmail|outlook)\\.com$")) {
+    out.print("{\"success\":false,\"message\":\"Correo inválido: mínimo 5 caracteres antes del @ y dominio gmail.com, hotmail.com u outlook.com\"}");
+    return;
+}
 
         String checkAdminSql = "SELECT u.id FROM usuarios u JOIN roles r ON u.rol_id = r.id " +
                                "WHERE u.correo = ? AND r.nombre IN ('ADMIN','SOPORTE')";
