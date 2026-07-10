@@ -27,12 +27,8 @@ try {
         out.print("{\"error\":\"missing user_id\"}");
         return;
     }
-
     con.setAutoCommit(false);
 
-    // =========================
-    // 1. OBTENER ITEMS
-    // =========================
     String carritoSQL =
         "SELECT cd.juego_id, cd.cantidad, cd.precio_unitario " +
         "FROM carrito_detalle cd " +
