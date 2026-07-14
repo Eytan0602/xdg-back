@@ -16,19 +16,66 @@ if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
 <%@ include file="../includes/db.jsp" %>
 <%@ include file="../includes/json-request.jsp" %>
 
+<%!
+private String esc(String s) {
+    if (s == null) return "";
+    return s.replace("\\", "\\\\").replace("\"", "\\\"")
+            .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
+}
+%>
+
 <%
 Map<String,String> jsonBody = parseJsonBody(request);
 
 try {
 
+    // usuario_id = quien paga y tiene el carrito
+    // destinatario_id = opcional; si viene, el juego se registra a nombre de este usuario (regalo)
     String usuario_id = param(request, jsonBody, "user_id");
+    String destinatario_id = param(request, jsonBody, "destinatario_id");
 
     if (usuario_id == null) {
         out.print("{\"error\":\"missing user_id\"}");
         return;
     }
+
+    boolean esRegalo = destinatario_id != null && !destinatario_id.trim().isEmpty();
+
+    // El "dueño" del juego tras la compra: el destinatario si es regalo, si no, el propio comprador.
+    String beneficiario_id = esRegalo ? destinatario_id.trim() : usuario_id;
+
     con.setAutoCommit(false);
 
+    // =========================
+    // 0. SI ES REGALO, VALIDAR QUE EL DESTINATARIO EXISTA Y NO SE REGALE A SÍ MISMO
+    // =========================
+    if (esRegalo) {
+
+        if (beneficiario_id.equals(usuario_id)) {
+            out.print("{\"success\":false,\"message\":\"No puedes regalarte el juego a ti mismo.\"}");
+            con.rollback();
+            return;
+        }
+
+        PreparedStatement psDestino = con.prepareStatement(
+            "SELECT id FROM usuarios WHERE id = ? " +
+            "AND (eliminado IS NULL OR eliminado = FALSE)"
+        );
+        psDestino.setString(1, beneficiario_id);
+        ResultSet rsDestino = psDestino.executeQuery();
+        boolean destinoValido = rsDestino.next();
+        rsDestino.close(); psDestino.close();
+
+        if (!destinoValido) {
+            out.print("{\"success\":false,\"message\":\"El usuario destinatario del regalo no existe.\"}");
+            con.rollback();
+            return;
+        }
+    }
+
+    // =========================
+    // 1. OBTENER ITEMS (siempre del carrito de quien paga)
+    // =========================
     String carritoSQL =
         "SELECT cd.juego_id, cd.cantidad, cd.precio_unitario " +
         "FROM carrito_detalle cd " +
@@ -67,7 +114,8 @@ try {
     }
 
     // =========================
-    // 1.5 VALIDAR QUE NO POSEA EL JUEGO
+    // 1.5 VALIDAR QUE EL BENEFICIARIO NO POSEA YA EL JUEGO
+    // (si es regalo, se valida sobre el destinatario; si no, sobre el propio comprador)
     // =========================
     PreparedStatement psCheck = con.prepareStatement(
         "SELECT j.titulo FROM venta_detalle vd " +
@@ -78,23 +126,27 @@ try {
     );
 
     for (Item it : itemList) {
-        psCheck.setString(1, usuario_id);
+        psCheck.setString(1, beneficiario_id);
         psCheck.setString(2, it.juegoId);
         ResultSet rsCheck = psCheck.executeQuery();
         if (rsCheck.next()) {
-            out.print("{\"success\":false,\"message\":\"Ya posees el juego '" + rsCheck.getString("titulo").replace("\"", "'") + "' en tu biblioteca.\"}");
+            String mensajeDuplicado = esRegalo
+                ? "El usuario destinatario ya posee el juego '" + esc(rsCheck.getString("titulo")) + "'."
+                : "Ya posees el juego '" + esc(rsCheck.getString("titulo")) + "' en tu biblioteca.";
+            out.print("{\"success\":false,\"message\":\"" + mensajeDuplicado + "\"}");
+            con.rollback();
             return;
         }
     }
 
    // =========================
-// 2. CREAR VENTA
+// 2. CREAR VENTA (a nombre del beneficiario: destinatario si es regalo, comprador si no)
 // =========================
 PreparedStatement ventaPS = con.prepareStatement(
-    "INSERT INTO ventas(usuario_id, fecha) VALUES(CAST(? AS UUID), NOW()) RETURNING id"
+    "INSERT INTO ventas(usuario_id, fecha) VALUES(?, NOW()) RETURNING id"
 );
 
-ventaPS.setString(1, usuario_id);
+ventaPS.setString(1, beneficiario_id);
 ResultSet keys = ventaPS.executeQuery();
 
 String ventaId = null;
@@ -110,7 +162,7 @@ if (ventaId == null) {
     // 3. INSERTAR DETALLE VENTA
     // =========================
     PreparedStatement detPS = con.prepareStatement(
-    "INSERT INTO venta_detalle(venta_id, juego_id, precio, cantidad) VALUES(CAST(? AS UUID), CAST(? AS INTEGER), ?, ?)"
+    "INSERT INTO venta_detalle(venta_id, juego_id, precio, cantidad) VALUES(?, CAST(? AS INTEGER), ?, ?)"
 );
 
     for (Item it : itemList) {
@@ -122,7 +174,7 @@ if (ventaId == null) {
 }
 
     // =========================
-    // 4. LIMPIAR CARRITO
+    // 4. LIMPIAR CARRITO (siempre el del comprador, es quien lo tenía)
     // =========================
     PreparedStatement clPS = con.prepareStatement(
         "DELETE FROM carrito_detalle cd " +
@@ -144,7 +196,7 @@ if (ventaId == null) {
 
     e.printStackTrace();
 
-    out.print("{\"error\":\"" + e.toString().replace("\"","") + "\"}");
+    out.print("{\"error\":\"" + esc(e.toString()) + "\"}");
 }
 %>
 <%@ include file="../includes/db_close.jsp" %>

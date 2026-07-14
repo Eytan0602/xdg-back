@@ -3,7 +3,7 @@
 <%@ include file="../includes/cors.jsp" %>
 <%@ include file="../includes/db.jsp" %>
 <%@ page import="org.mindrot.jbcrypt.BCrypt" %>
-
+<%
 String __role = (String) session.getAttribute("user_role");
 if (!"admin".equals(__role)) {
     response.setStatus(401);
@@ -12,7 +12,6 @@ if (!"admin".equals(__role)) {
 }
 
 String method = request.getMethod().toUpperCase();
-
 StringBuilder sb = new StringBuilder();
 try {
     java.io.BufferedReader reader = request.getReader();
