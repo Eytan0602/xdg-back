@@ -18,15 +18,18 @@ int daysParam = 7;
     }
     String fmt = daysParam <= 7 ? "Dy" : "DD/MM";
 
+    // ---------- DIARIO ----------
+    // Solo se traen los días que tuvieron al menos una venta dentro del rango.
+    // Al quitar el generate_series + LEFT JOIN, los días sin ventas no aparecen.
     String sqlDaily =
-        "SELECT gs::date as dia, " +
-        "TO_CHAR(gs, '" + fmt + "') as label, " +
-        "COALESCE(SUM(vd.precio * vd.cantidad), 0) as total " +
-        "FROM generate_series(CURRENT_DATE - INTERVAL '" + (daysParam - 1) + " days', CURRENT_DATE, INTERVAL '1 day') AS gs " +
-        "LEFT JOIN ventas v ON v.fecha::date = gs::date " +
-        "LEFT JOIN venta_detalle vd ON vd.venta_id = v.id " +
-        "GROUP BY gs " +
-        "ORDER BY gs";
+        "SELECT v.fecha::date as dia, " +
+        "TO_CHAR(v.fecha::date, '" + fmt + "') as label, " +
+        "SUM(vd.precio * vd.cantidad) as total " +
+        "FROM ventas v " +
+        "INNER JOIN venta_detalle vd ON vd.venta_id = v.id " +
+        "WHERE v.fecha::date >= CURRENT_DATE - INTERVAL '" + (daysParam - 1) + " days' " +
+        "GROUP BY v.fecha::date " +
+        "ORDER BY dia";
 
     PreparedStatement psD = con.prepareStatement(sqlDaily);
     ResultSet rsD = psD.executeQuery();
@@ -49,15 +52,16 @@ int daysParam = 7;
     }
     dailyJson.append("]");
 
-    // ---------- MENSUAL (zero-filled, Ene-Dic del año actual) ----------
+    // ---------- MENSUAL ----------
+    // Igual que arriba: solo los meses que registraron ventas (sin zero-fill de Ene a Dic).
     String sqlMonthly =
-        "SELECT TO_CHAR(m.mes, 'Mon') as mes, " +
-        "COALESCE(SUM(vd.precio * vd.cantidad), 0) as total " +
-        "FROM generate_series(date_trunc('year', CURRENT_DATE), date_trunc('year', CURRENT_DATE) + INTERVAL '11 months', INTERVAL '1 month') AS m(mes) " +
-        "LEFT JOIN ventas v ON date_trunc('month', v.fecha) = m.mes " +
-        "LEFT JOIN venta_detalle vd ON vd.venta_id = v.id " +
-        "GROUP BY m.mes " +
-        "ORDER BY m.mes";
+        "SELECT date_trunc('month', v.fecha) as mes, " +
+        "TO_CHAR(date_trunc('month', v.fecha), 'Mon') as label, " +
+        "SUM(vd.precio * vd.cantidad) as total " +
+        "FROM ventas v " +
+        "INNER JOIN venta_detalle vd ON vd.venta_id = v.id " +
+        "GROUP BY date_trunc('month', v.fecha) " +
+        "ORDER BY mes";
 
     PreparedStatement psM = con.prepareStatement(sqlMonthly);
     ResultSet rsM = psM.executeQuery();
@@ -66,7 +70,7 @@ int daysParam = 7;
     double sumMonthlyTotal = 0;
 
     while (rsM.next()) {
-        meses.add(rsM.getString("mes").trim().toUpperCase());
+        meses.add(rsM.getString("label").trim().toUpperCase());
         double total = rsM.getDouble("total");
         totalesM.add(total);
         sumMonthlyTotal += total;
