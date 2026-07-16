@@ -13,11 +13,13 @@ try {
     String user_id = param(request, jsonBody, "user_id");
 
     String sql =
-    "SELECT v.id as venta_id, v.fecha, " +
+    "SELECT v.id as venta_id, v.fecha, v.es_regalo, v.rol_regalo, v.tiene_boleta, " +
+    "ur.usuario as relacionado_usuario, ur.nombre as relacionado_nombre, " +
     "j.id as juego_id, j.titulo, j.imagen_url, vd.precio, vd.cantidad, j.precio as precio_original, j.fecha_lanzamiento " +
     "FROM ventas v " +
     "INNER JOIN venta_detalle vd ON vd.venta_id = v.id " +
     "INNER JOIN juegos j ON j.id = vd.juego_id " +
+    "LEFT JOIN usuarios ur ON ur.id = v.relacionado_usuario_id " +
     "WHERE v.usuario_id=? " +
     "ORDER BY v.fecha DESC";
 
@@ -33,11 +35,18 @@ try {
 
         if(!first) json.append(",");
 
+        String relacionadoUsuario = rs.getString("relacionado_usuario");
+        String rolRegalo = rs.getString("rol_regalo");
+
         json.append("{")
         .append("\"venta_id\":\"").append(rs.getString("venta_id")).append("\",")
         .append("\"fecha\":\"").append(rs.getString("fecha")).append("\",")
+        .append("\"es_regalo\":").append(rs.getBoolean("es_regalo")).append(",")
+        .append("\"rol_regalo\":").append(rolRegalo != null ? "\"" + rolRegalo + "\"" : "null").append(",")
+        .append("\"tiene_boleta\":").append(rs.getBoolean("tiene_boleta")).append(",")
+        .append("\"relacionado_usuario\":").append(relacionadoUsuario != null ? "\"" + relacionadoUsuario.replace("\"","'") + "\"" : "null").append(",")
         .append("\"juego_id\":\"").append(rs.getString("juego_id")).append("\",")
-        .append("\"titulo\":\"").append(rs.getString("titulo")).append("\",")
+        .append("\"titulo\":\"").append(rs.getString("titulo").replace("\"","'")).append("\",")
         .append("\"imagen_url\":\"").append(rs.getString("imagen_url") != null ? rs.getString("imagen_url").replace("\"","'") : "").append("\",")
         .append("\"precio\":").append(rs.getDouble("precio")).append(",")
         .append("\"cantidad\":").append(rs.getInt("cantidad")).append(",")

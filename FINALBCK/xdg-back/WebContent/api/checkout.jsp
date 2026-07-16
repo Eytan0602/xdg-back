@@ -30,7 +30,7 @@ Map<String,String> jsonBody = parseJsonBody(request);
 try {
 
     // usuario_id = quien paga y tiene el carrito
-    // destinatario_id = opcional; si viene, el juego se registra a nombre de este usuario (regalo)
+    // destinatario_id = opcional; si viene, es un regalo
     String usuario_id = param(request, jsonBody, "user_id");
     String destinatario_id = param(request, jsonBody, "destinatario_id");
 
@@ -41,7 +41,7 @@ try {
 
     boolean esRegalo = destinatario_id != null && !destinatario_id.trim().isEmpty();
 
-    // El "dueño" del juego tras la compra: el destinatario si es regalo, si no, el propio comprador.
+    // A quién le "queda" el juego en su biblioteca: el destinatario si es regalo, si no, el propio comprador.
     String beneficiario_id = esRegalo ? destinatario_id.trim() : usuario_id;
 
     con.setAutoCommit(false);
@@ -87,26 +87,26 @@ try {
     ResultSet items = psCarrito.executeQuery();
 
     class Item {
-    String juegoId;
-    int cantidad;
-    double precio;
+        String juegoId;
+        int cantidad;
+        double precio;
 
-    Item(String j, int c, double p) {
-        juegoId = j;
-        cantidad = c;
-        precio = p;
+        Item(String j, int c, double p) {
+            juegoId = j;
+            cantidad = c;
+            precio = p;
+        }
     }
-}
 
     List<Item> itemList = new ArrayList<Item>();
 
     while (items.next()) {
-    itemList.add(new Item(
-        items.getString("juego_id"),  // <-- getString, no getInt
-        items.getInt("cantidad"),
-        items.getDouble("precio_unitario")
-    ));
-}
+        itemList.add(new Item(
+            items.getString("juego_id"),
+            items.getInt("cantidad"),
+            items.getDouble("precio_unitario")
+        ));
+    }
 
     if (itemList.isEmpty()) {
         out.print("{\"success\":false,\"message\":\"cart empty\"}");
@@ -115,13 +115,15 @@ try {
 
     // =========================
     // 1.5 VALIDAR QUE EL BENEFICIARIO NO POSEA YA EL JUEGO
-    // (si es regalo, se valida sobre el destinatario; si no, sobre el propio comprador)
+    // (se ignoran las filas 'enviado', porque esas no representan posesión real:
+    //  son solo el registro/boleta de un regalo que el usuario hizo a otro)
     // =========================
     PreparedStatement psCheck = con.prepareStatement(
         "SELECT j.titulo FROM venta_detalle vd " +
         "JOIN ventas v ON vd.venta_id = v.id " +
         "JOIN juegos j ON vd.juego_id = j.id " +
         "WHERE v.usuario_id = ? AND vd.juego_id = CAST(? AS INTEGER) " +
+        "AND (v.rol_regalo IS NULL OR v.rol_regalo <> 'enviado') " +
         "LIMIT 1"
     );
 
@@ -137,44 +139,76 @@ try {
             con.rollback();
             return;
         }
+        rsCheck.close();
     }
 
-   // =========================
-// 2. CREAR VENTA (a nombre del beneficiario: destinatario si es regalo, comprador si no)
-// =========================
-PreparedStatement ventaPS = con.prepareStatement(
-    "INSERT INTO ventas(usuario_id, fecha) VALUES(?, NOW()) RETURNING id"
-);
+    // =========================
+    // 2. CREAR VENTA(S)
+    // =========================
+    String ventaCompradorId = null;     // fila que guarda la boleta del comprador
+    String ventaBeneficiarioId = null;  // fila que representa la posesión del juego
 
-ventaPS.setString(1, beneficiario_id);
-ResultSet keys = ventaPS.executeQuery();
+    if (esRegalo) {
+        // 2a. Fila del COMPRADOR: guarda la boleta, marcada como "regalo enviado"
+        PreparedStatement ventaCompradorPS = con.prepareStatement(
+            "INSERT INTO ventas(usuario_id, fecha, es_regalo, rol_regalo, relacionado_usuario_id, tiene_boleta) " +
+            "VALUES(?, NOW(), TRUE, 'enviado', ?, TRUE) RETURNING id"
+        );
+        ventaCompradorPS.setString(1, usuario_id);
+        ventaCompradorPS.setString(2, beneficiario_id);
+        ResultSet keysComprador = ventaCompradorPS.executeQuery();
+        if (keysComprador.next()) ventaCompradorId = keysComprador.getString(1);
 
-String ventaId = null;
-if (keys.next()) {
-    ventaId = keys.getString(1);
-}
+        // 2b. Fila del RECEPTOR: el juego entra a su biblioteca, sin boleta
+        PreparedStatement ventaReceptorPS = con.prepareStatement(
+            "INSERT INTO ventas(usuario_id, fecha, es_regalo, rol_regalo, relacionado_usuario_id, tiene_boleta) " +
+            "VALUES(?, NOW(), TRUE, 'recibido', ?, FALSE) RETURNING id"
+        );
+        ventaReceptorPS.setString(1, beneficiario_id);
+        ventaReceptorPS.setString(2, usuario_id);
+        ResultSet keysReceptor = ventaReceptorPS.executeQuery();
+        if (keysReceptor.next()) ventaBeneficiarioId = keysReceptor.getString(1);
 
-if (ventaId == null) {
-    throw new Exception("No se pudo obtener el ID de la venta");
-}
+    } else {
+        // Compra normal para uno mismo: una sola fila
+        PreparedStatement ventaPS = con.prepareStatement(
+            "INSERT INTO ventas(usuario_id, fecha) VALUES(?, NOW()) RETURNING id"
+        );
+        ventaPS.setString(1, usuario_id);
+        ResultSet keys = ventaPS.executeQuery();
+        if (keys.next()) ventaCompradorId = keys.getString(1);
+        ventaBeneficiarioId = ventaCompradorId;
+    }
+
+    if (ventaCompradorId == null || ventaBeneficiarioId == null) {
+        throw new Exception("No se pudo obtener el ID de la venta");
+    }
 
     // =========================
-    // 3. INSERTAR DETALLE VENTA
+    // 3. INSERTAR DETALLE VENTA (para cada fila de venta creada)
     // =========================
     PreparedStatement detPS = con.prepareStatement(
-    "INSERT INTO venta_detalle(venta_id, juego_id, precio, cantidad) VALUES(?, CAST(? AS INTEGER), ?, ?)"
-);
+        "INSERT INTO venta_detalle(venta_id, juego_id, precio, cantidad) VALUES(?, CAST(? AS INTEGER), ?, ?)"
+    );
 
     for (Item it : itemList) {
-    detPS.setString(1, ventaId);
-    detPS.setString(2, it.juegoId);
-    detPS.setDouble(3, it.precio);
-    detPS.setInt(4, it.cantidad);
-    detPS.executeUpdate();
-}
+        detPS.setString(1, ventaCompradorId);
+        detPS.setString(2, it.juegoId);
+        detPS.setDouble(3, it.precio);
+        detPS.setInt(4, it.cantidad);
+        detPS.executeUpdate();
+
+        if (!ventaBeneficiarioId.equals(ventaCompradorId)) {
+            detPS.setString(1, ventaBeneficiarioId);
+            detPS.setString(2, it.juegoId);
+            detPS.setDouble(3, it.precio);
+            detPS.setInt(4, it.cantidad);
+            detPS.executeUpdate();
+        }
+    }
 
     // =========================
-    // 4. LIMPIAR CARRITO (siempre el del comprador, es quien lo tenía)
+    // 4. LIMPIAR CARRITO (siempre el del comprador)
     // =========================
     PreparedStatement clPS = con.prepareStatement(
         "DELETE FROM carrito_detalle cd " +
@@ -182,13 +216,46 @@ if (ventaId == null) {
         "WHERE cd.carrito_id = c.id " +
         "AND c.usuario_id = ?"
     );
-
     clPS.setString(1, usuario_id);
     clPS.executeUpdate();
 
+    // =========================
+    // 5. ARMAR ITEMS PARA EL RECIBO (respuesta al comprador)
+    // =========================
+    StringBuilder itemsJson = new StringBuilder("[");
+    boolean primerItem = true;
+    PreparedStatement juegoInfoPS = con.prepareStatement(
+        "SELECT titulo, precio as precio_original, fecha_lanzamiento FROM juegos WHERE id = CAST(? AS INTEGER)"
+    );
+    for (Item it : itemList) {
+        juegoInfoPS.setString(1, it.juegoId);
+        ResultSet rsJuego = juegoInfoPS.executeQuery();
+        String titulo = "";
+        double precioOriginal = it.precio;
+        String fechaLanz = null;
+        if (rsJuego.next()) {
+            titulo = rsJuego.getString("titulo");
+            precioOriginal = rsJuego.getDouble("precio_original");
+            java.sql.Date fl = rsJuego.getDate("fecha_lanzamiento");
+            fechaLanz = fl != null ? fl.toString() : null;
+        }
+        rsJuego.close();
+
+        if (!primerItem) itemsJson.append(",");
+        primerItem = false;
+        itemsJson.append("{")
+            .append("\"titulo\":\"").append(esc(titulo)).append("\",")
+            .append("\"precio\":").append(it.precio).append(",")
+            .append("\"precio_original\":").append(precioOriginal).append(",")
+            .append("\"cantidad\":").append(it.cantidad).append(",")
+            .append("\"fecha_lanzamiento\":").append(fechaLanz != null ? "\"" + fechaLanz + "\"" : "null")
+            .append("}");
+    }
+    itemsJson.append("]");
+
     con.commit();
 
-    out.print("{\"success\":true,\"venta_id\":\"" + ventaId + "\"}");
+    out.print("{\"success\":true,\"venta_id\":\"" + ventaCompradorId + "\",\"items\":" + itemsJson.toString() + "}");
 
 } catch (Exception e) {
 
