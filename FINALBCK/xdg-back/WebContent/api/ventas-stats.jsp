@@ -12,75 +12,73 @@ try {
         out.print("{\"error\":\"unauthorized\"}");
         return;
     }
-    String sqlMonthly =
-        "SELECT TO_CHAR(v.fecha, 'Mon') as mes, " +
-        "EXTRACT(MONTH FROM v.fecha) as num_mes, " +
-        "SUM(vd.precio * vd.cantidad) as total " +
-        "FROM ventas v " +
-        "JOIN venta_detalle vd ON vd.venta_id = v.id " +
-        "WHERE EXTRACT(YEAR FROM v.fecha) = EXTRACT(YEAR FROM NOW()) " +
-        "GROUP BY mes, num_mes ORDER BY num_mes";
-
-    PreparedStatement psM = con.prepareStatement(sqlMonthly);
-    ResultSet rsM = psM.executeQuery();
-    List<String> meses = new ArrayList<String>();
-    List<Double> totalesM = new ArrayList<Double>();
-    double maxMonthly = 1;
-    double sumMonthlyTotal = 0;
-
-    while (rsM.next()) {
-        String mes = rsM.getString("mes").toUpperCase();
-        double total = rsM.getDouble("total");
-        meses.add(mes);
-        totalesM.add(total);
-        sumMonthlyTotal += total;
-        if (total > maxMonthly) maxMonthly = total;
-    }
-
-    StringBuilder monthlyJson = new StringBuilder("[");
-    for (int i = 0; i < meses.size(); i++) {
-        if (i > 0) monthlyJson.append(",");
-        int pct = (int) Math.round((totalesM.get(i) / maxMonthly) * 100);
-        monthlyJson.append("{\"label\":\"").append(meses.get(i)).append("\",\"value\":").append(pct).append("}");
-    }
-    monthlyJson.append("]");
-
-    int daysParam = 7;
+int daysParam = 7;
     if (request.getParameter("days") != null) {
         try { daysParam = Integer.parseInt(request.getParameter("days")); } catch (Exception e){}
     }
     String fmt = daysParam <= 7 ? "Dy" : "DD/MM";
-    
+
     String sqlDaily =
-    "SELECT TO_CHAR(v.fecha::date, '" + fmt + "') as dia, " +
-    "SUM(vd.precio * vd.cantidad) as total " +
-    "FROM ventas v " +
-    "JOIN venta_detalle vd ON vd.venta_id = v.id " +
-    "WHERE v.fecha >= NOW() - INTERVAL '" + daysParam + " days' " +
-    "GROUP BY dia, v.fecha::date ORDER BY v.fecha::date";
+        "SELECT gs::date as dia, " +
+        "TO_CHAR(gs, '" + fmt + "') as label, " +
+        "COALESCE(SUM(vd.precio * vd.cantidad), 0) as total " +
+        "FROM generate_series(CURRENT_DATE - INTERVAL '" + (daysParam - 1) + " days', CURRENT_DATE, INTERVAL '1 day') AS gs " +
+        "LEFT JOIN ventas v ON v.fecha::date = gs::date " +
+        "LEFT JOIN venta_detalle vd ON vd.venta_id = v.id " +
+        "GROUP BY gs " +
+        "ORDER BY gs";
 
     PreparedStatement psD = con.prepareStatement(sqlDaily);
     ResultSet rsD = psD.executeQuery();
     List<String> dias = new ArrayList<String>();
     List<Double> totalesD = new ArrayList<Double>();
-    double maxDaily = 1;
     double sumDailyTotal = 0;
 
     while (rsD.next()) {
-        dias.add(rsD.getString("dia").toUpperCase());
+        dias.add(rsD.getString("label").trim().toUpperCase());
         double val = rsD.getDouble("total");
         totalesD.add(val);
         sumDailyTotal += val;
-        if (val > maxDaily) maxDaily = val;
     }
 
     StringBuilder dailyJson = new StringBuilder("[");
     for (int i = 0; i < dias.size(); i++) {
         if (i > 0) dailyJson.append(",");
-        int pct = (int) Math.round((totalesD.get(i) / maxDaily) * 100);
-        dailyJson.append("{\"label\":\"").append(dias.get(i)).append("\",\"value\":").append(pct).append("}");
+        dailyJson.append("{\"label\":\"").append(dias.get(i))
+                  .append("\",\"value\":").append(totalesD.get(i)).append("}");
     }
     dailyJson.append("]");
+
+    // ---------- MENSUAL (zero-filled, Ene-Dic del año actual) ----------
+    String sqlMonthly =
+        "SELECT TO_CHAR(m.mes, 'Mon') as mes, " +
+        "COALESCE(SUM(vd.precio * vd.cantidad), 0) as total " +
+        "FROM generate_series(date_trunc('year', CURRENT_DATE), date_trunc('year', CURRENT_DATE) + INTERVAL '11 months', INTERVAL '1 month') AS m(mes) " +
+        "LEFT JOIN ventas v ON date_trunc('month', v.fecha) = m.mes " +
+        "LEFT JOIN venta_detalle vd ON vd.venta_id = v.id " +
+        "GROUP BY m.mes " +
+        "ORDER BY m.mes";
+
+    PreparedStatement psM = con.prepareStatement(sqlMonthly);
+    ResultSet rsM = psM.executeQuery();
+    List<String> meses = new ArrayList<String>();
+    List<Double> totalesM = new ArrayList<Double>();
+    double sumMonthlyTotal = 0;
+
+    while (rsM.next()) {
+        meses.add(rsM.getString("mes").trim().toUpperCase());
+        double total = rsM.getDouble("total");
+        totalesM.add(total);
+        sumMonthlyTotal += total;
+    }
+
+    StringBuilder monthlyJson = new StringBuilder("[");
+    for (int i = 0; i < meses.size(); i++) {
+        if (i > 0) monthlyJson.append(",");
+        monthlyJson.append("{\"label\":\"").append(meses.get(i))
+                   .append("\",\"value\":").append(totalesM.get(i)).append("}");
+    }
+    monthlyJson.append("]");
 
     String sqlCat =
         "SELECT c.nombre, COUNT(vd.id) as ventas " +
