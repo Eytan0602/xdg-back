@@ -46,7 +46,7 @@ try {
     String mesParam = request.getParameter("mes");
 
     String dateGroup = "CAST(v.fecha AS DATE)";
-    String whereClause = "";
+    String whereClause = "WHERE (v.rol_regalo IS NULL OR v.rol_regalo <> 'recibido') ";
 
     if ("semanal".equalsIgnoreCase(rango)) {
         dateGroup = "DATE_TRUNC('week', v.fecha)";
@@ -62,7 +62,7 @@ try {
                 }
                 if (inClause.length() > 0) {
                     dateGroup = "CAST(v.fecha AS DATE)";
-                    whereClause = "WHERE EXTRACT(MONTH FROM v.fecha) IN (" + inClause.toString() + ") AND EXTRACT(YEAR FROM v.fecha) = EXTRACT(YEAR FROM NOW()) ";
+                    whereClause += "AND EXTRACT(MONTH FROM v.fecha) IN (" + inClause.toString() + ") AND EXTRACT(YEAR FROM v.fecha) = EXTRACT(YEAR FROM NOW()) ";
                 }
             } catch(Exception e){}
         } else {

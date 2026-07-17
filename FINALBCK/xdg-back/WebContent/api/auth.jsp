@@ -46,8 +46,8 @@ try {
 
         String hash = BCrypt.hashpw(contrasena, BCrypt.gensalt());
 
-        String sql = "INSERT INTO usuarios(nombre, usuario, correo, contrasena, rol_id) " +
-                     "VALUES(?,?,?,?, (SELECT id FROM roles WHERE nombre = 'CLIENTE'))";
+        String sql = "INSERT INTO usuarios(nombre, usuario, correo, contrasena, rol_id, ultimo_acceso) " +
+                     "VALUES(?,?,?,?, (SELECT id FROM roles WHERE nombre = 'CLIENTE'), NOW())";
         PreparedStatement ps = con.prepareStatement(sql, new String[]{"id"});
         ps.setString(1, nombre);
         ps.setString(2, usuario);

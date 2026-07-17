@@ -1,4 +1,4 @@
-﻿﻿<%@ page contentType="application/json;charset=UTF-8" %>
+﻿<%@ page contentType="application/json;charset=UTF-8" %>
 <%@ page import="java.sql.*" %>
 <%@ include file="../includes/cors.jsp" %>
 <%@ include file="../includes/db.jsp" %>
@@ -20,6 +20,11 @@ if(id != null){
             correo  = rs.getString("correo");
         }
         rs.close(); ps.close();
+
+        PreparedStatement psAcceso = con.prepareStatement("UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = ?");
+        psAcceso.setString(1, id);
+        psAcceso.executeUpdate();
+        psAcceso.close();
     } catch(Exception e) {}
 
     out.print("{");

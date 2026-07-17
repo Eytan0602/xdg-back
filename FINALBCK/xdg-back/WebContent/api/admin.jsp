@@ -31,7 +31,8 @@ try {
                 "COUNT(DISTINCT v.id) AS total_ventas, " +
                 "COUNT(DISTINCT v.usuario_id) AS clientes_unicos " +
                 "FROM ventas v " +
-                "JOIN venta_detalle vd ON vd.venta_id = v.id";
+                "JOIN venta_detalle vd ON vd.venta_id = v.id " +
+                "WHERE (v.rol_regalo IS NULL OR v.rol_regalo <> 'recibido')";
 
             ResultSet totalRs = con.prepareStatement(totalSql).executeQuery();
             double totalGanancias = 0;
@@ -68,7 +69,8 @@ try {
                 "SELECT COALESCE(SUM(vd.precio * vd.cantidad), 0) AS mes_total " +
                 "FROM ventas v JOIN venta_detalle vd ON vd.venta_id = v.id " +
                 "WHERE EXTRACT(MONTH FROM v.fecha) = EXTRACT(MONTH FROM NOW()) " +
-                "AND EXTRACT(YEAR FROM v.fecha) = EXTRACT(YEAR FROM NOW())"
+                "AND EXTRACT(YEAR FROM v.fecha) = EXTRACT(YEAR FROM NOW()) " +
+                "AND (v.rol_regalo IS NULL OR v.rol_regalo <> 'recibido')"
             ).executeQuery();
             double ventaMensual = 0;
             if(mesRs.next()) ventaMensual = mesRs.getDouble("mes_total");
